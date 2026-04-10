@@ -48,7 +48,11 @@ const envSchema = Joi.object({
   MATCHING_RADIUS_KM: Joi.number().positive().default(5),
   MATCHING_MAX_INITIAL_DRIVERS: Joi.number().integer().min(1).default(3),
   MATCHING_DRIVER_RESPONSE_TIMEOUT_MS: Joi.number().integer().min(1000).default(12000),
-  DRIVER_LOCATION_THROTTLE_MS: Joi.number().integer().min(500).default(2500)
+  DRIVER_LOCATION_THROTTLE_MS: Joi.number().integer().min(500).default(2500),
+  ADMIN_EMAIL: Joi.string().email().default('admin@rideops.com'),
+  ADMIN_PASSWORD: Joi.string().min(6).default('Admin@123'),
+  ADMIN_NAME: Joi.string().trim().default('Operations Lead'),
+  ADMIN_TOKEN_EXPIRES_IN: Joi.string().default('8h')
 })
   .unknown(true)
   .required();
@@ -130,7 +134,7 @@ module.exports = {
     projectId: value.FIREBASE_PROJECT_ID,
     clientEmail: value.FIREBASE_CLIENT_EMAIL || undefined,
     privateKey: value.FIREBASE_PRIVATE_KEY
-      ? value.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
+      ? value.FIREBASE_PRIVATE_KEY.replace(/\n/g, '\n')
       : undefined
   },
   socket: {
@@ -141,5 +145,11 @@ module.exports = {
     maxInitialDrivers: value.MATCHING_MAX_INITIAL_DRIVERS,
     driverResponseTimeoutMs: value.MATCHING_DRIVER_RESPONSE_TIMEOUT_MS,
     locationThrottleMs: value.DRIVER_LOCATION_THROTTLE_MS
+  },
+  admin: {
+    email: value.ADMIN_EMAIL,
+    password: value.ADMIN_PASSWORD,
+    name: value.ADMIN_NAME,
+    tokenExpiresIn: value.ADMIN_TOKEN_EXPIRES_IN
   }
 };
