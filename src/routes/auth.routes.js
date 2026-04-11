@@ -19,6 +19,7 @@ router.post(
   authController.sendOtp
 );
 router.post('/verify-otp', validateSchema(authSchemas.verifyOtp), authController.verifyOtp);
+router.post('/google-signin', validateSchema(authSchemas.googleSignin), deviceValidator, authController.googleSignin);
 router.post('/refresh-token', validateSchema(authSchemas.refreshToken), authController.refreshToken);
 router.post('/logout', authenticate, authController.logout);
 router.post('/logout-all', authenticate, authController.logoutAll);

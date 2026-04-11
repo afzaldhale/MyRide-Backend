@@ -25,7 +25,15 @@ const authSchemas = {
     body: Joi.object({
       refresh_token: Joi.string().trim().required()
     })
+  },
+  googleSignin: {
+    body: Joi.object({
+      firebase_token: Joi.string().trim().required(),
+      role: Joi.string().valid('rider', 'driver').required(),
+      device_id: Joi.string().trim().min(8).max(191).required(),
+      platform: Joi.string().trim().valid('android', 'ios', 'web').required(),
+      app_version: Joi.string().trim().max(32).required()
+    })
   }
-};
 
 module.exports = authSchemas;

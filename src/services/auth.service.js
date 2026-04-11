@@ -339,9 +339,122 @@ const logoutAllSessions = async ({ userId, tokenId, expiresAt }) => {
   await cacheService.blacklistAccessToken(tokenId, expiresAt);
 };
 
+const googleSignin = async ({ body, ipAddress, userAgent }) => {
+  const requestIp = ipAddress || 'unknown';
+  const deviceId = body.device_id ? String(body.device_id).trim() : 'unknown-device';
+  const platform = body.platform ? String(body.platform).trim().toLowerCase() : 'unknown';
+  const appVersion = body.app_version ? String(body.app_version).trim() : 'unknown';
+  const deviceContext = getDeviceContext({
+    userAgent,
+    platform
+  });
+
+  let decodedToken;
+
+  try {
+    decodedToken = await admin.auth().verifyIdToken(body.firebase_token);
+  } catch (error) {
+    logger.error('Google sign-in: Invalid Firebase token', { error: error.message });
+    throw new ApiError(401, 'Invalid Firebase ID token', {
+      reason: error.message
+    });
+  }
+
+  // Check if token is from Google provider
+  if (!decodedToken.firebase.sign_in_provider || decodedToken.firebase.sign_in_provider !== 'google.com') {
+    throw new ApiError(400, 'Token is not from Google authentication provider');
+  }
+
+  const googleId = decodedToken.uid; // Firebase UID for Google users
+  const email = decodedToken.email;
+  const name = decodedToken.name;
+  const profilePhoto = decodedToken.picture;
+
+  if (!email && !googleId) {
+    throw new ApiError(400, 'Google token missing required user information');
+  }
+
+  const result = await sequelize.transaction(async (transaction) => {
+    // Try to find existing user by Google ID or email
+    let user = await userRepository.findByGoogleId(googleId, transaction);
+    if (!user && email) {
+      user = await userRepository.findByEmail(email, transaction);
+    }
+
+    if (user && user.authProvider !== 'google') {
+      // User exists but with different auth provider
+      throw new ApiError(409, 'This email is already registered with phone authentication');
+    }
+
+    if (!user) {
+      // Create new Google user
+      user = await userRepository.createUser(
+        {
+          email,
+          googleId,
+          authProvider: 'google',
+          role: body.role,
+          name: name || null,
+          profilePhoto: profilePhoto || null
+        },
+        transaction
+      );
+
+      if (body.role === USER_ROLES.DRIVER) {
+        const createdDriverProfile = await driverRepository.createDriverProfile(
+          {
+            userId: user.id
+          },
+          transaction
+        );
+        user.setDataValue('driverProfile', createdDriverProfile);
+      }
+    } else {
+      // Update existing Google user info if needed
+      const updates = {};
+      if (name && !user.name) updates.name = name;
+      if (profilePhoto && !user.profilePhoto) updates.profilePhoto = profilePhoto;
+
+      if (Object.keys(updates).length > 0) {
+        await userRepository.updateUser(user.id, updates, transaction);
+        user = { ...user, ...updates };
+      }
+    }
+
+    const driverProfile = user.driverProfile || null;
+    const { session, accessToken, refreshToken } = await sessionService.createSession(
+      {
+        user,
+        driverProfile,
+        deviceId,
+        deviceType: deviceContext.deviceType,
+        platform,
+        appVersion,
+        ipAddress: requestIp,
+        userAgent: deviceContext.userAgent
+      },
+      transaction
+    );
+
+    return {
+      user,
+      driverProfile,
+      session,
+      accessToken,
+      refreshToken
+    };
+  });
+
+  await cacheService.setCachedSession(result.session);
+  await userRepository.invalidateAuthUserCache(result.user.id);
+
+  return buildAuthPayload(result);
+};
+
 module.exports = {
   prepareOtpSession,
   verifyOtpAndLogin,
+  googleSignin,
   refreshSession,
   logoutSession,
   logoutAllSessions

@@ -29,6 +29,19 @@ const verifyOtp = asyncHandler(async (req, res) => {
   });
 });
 
+const googleSignin = asyncHandler(async (req, res) => {
+  const result = await authService.googleSignin({
+    body: req.body,
+    ipAddress: getClientIp(req),
+    userAgent: req.headers['user-agent'] || null
+  });
+
+  return sendSuccess(res, {
+    message: 'Google sign-in successful',
+    data: result
+  });
+});
+
 const refreshToken = asyncHandler(async (req, res) => {
   const result = await authService.refreshSession({
     refreshToken: req.body.refresh_token,

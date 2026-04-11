@@ -31,6 +31,30 @@ const findByPhoneNumber = (phoneNumber, transaction) =>
     transaction
   });
 
+const findByEmail = (email, transaction) =>
+  User.findOne({
+    where: { email },
+    include: [
+      {
+        model: Driver,
+        as: 'driverProfile'
+      }
+    ],
+    transaction
+  });
+
+const findByGoogleId = (googleId, transaction) =>
+  User.findOne({
+    where: { googleId },
+    include: [
+      {
+        model: Driver,
+        as: 'driverProfile'
+      }
+    ],
+    transaction
+  });
+
 const findById = (id) =>
   User.findByPk(id, {
     include: [
