@@ -5,14 +5,12 @@ module.exports = {
     // Add Google sign-in fields to users table
     await queryInterface.addColumn('users', 'email', {
       type: Sequelize.STRING(255),
-      allowNull: true,
-      unique: true
+      allowNull: true
     });
 
     await queryInterface.addColumn('users', 'google_id', {
       type: Sequelize.STRING(255),
-      allowNull: true,
-      unique: true
+      allowNull: true
     });
 
     await queryInterface.addColumn('users', 'auth_provider', {
@@ -24,29 +22,12 @@ module.exports = {
     // Make phone_number nullable for Google users
     await queryInterface.changeColumn('users', 'phone_number', {
       type: Sequelize.STRING(20),
-      allowNull: true,
-      unique: false // Remove unique constraint since Google users won't have phone
+      allowNull: true
     });
-
-    // Add composite unique constraint for phone_number when auth_provider is 'phone'
-    // This is complex in Sequelize, so we'll handle it in the model validation instead
 
     // Add indexes
-    await queryInterface.addIndex('users', ['email'], {
-      where: {
-        email: {
-          [Sequelize.Op.ne]: null
-        }
-      }
-    });
-
-    await queryInterface.addIndex('users', ['google_id'], {
-      where: {
-        google_id: {
-          [Sequelize.Op.ne]: null
-        }
-      }
-    });
+    await queryInterface.addIndex('users', ['email']);
+    await queryInterface.addIndex('users', ['google_id']);
   },
 
   async down(queryInterface, Sequelize) {
@@ -58,8 +39,7 @@ module.exports = {
     // Restore phone_number constraints
     await queryInterface.changeColumn('users', 'phone_number', {
       type: Sequelize.STRING(20),
-      allowNull: false,
-      unique: true
+      allowNull: false
     });
   }
 };</content>
