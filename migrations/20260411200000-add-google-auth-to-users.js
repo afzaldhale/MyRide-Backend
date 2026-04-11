@@ -42,5 +42,4 @@ module.exports = {
       allowNull: false
     });
   }
-};</content>
-<parameter name="filePath">d:/ride_app_platform/backend/migrations/20260411200000-add-google-auth-to-users.js
+};
