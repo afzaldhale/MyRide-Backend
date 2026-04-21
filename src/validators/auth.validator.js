@@ -35,5 +35,6 @@ const authSchemas = {
       app_version: Joi.string().trim().max(32).required()
     })
   }
+};
 
 module.exports = authSchemas;
