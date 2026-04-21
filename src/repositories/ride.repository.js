@@ -52,9 +52,16 @@ const getAvailableRides = () =>
     order: [['createdAt', 'ASC']]
   });
 
+const updateRideStatus = (rideId, status, transaction) =>
+  Ride.update(
+    { status },
+    { where: { id: rideId }, transaction }
+  );
+
 module.exports = {
   createRide,
   findById,
   getRidesByRiderId,
-  getAvailableRides
+  getAvailableRides,
+  updateRideStatus
 };

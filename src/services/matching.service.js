@@ -123,49 +123,109 @@ const dispatchBatch = async (rideId) => {
 };
 
 const startMatching = async (ride) => {
-  const hydratedRide = await rideRepository.findById(ride.id);
-  const candidates = await findNearestDrivers({
-    pickupLat: hydratedRide.pickupLat,
-    pickupLng: hydratedRide.pickupLng,
-    limit: 15,
-    radiusKm: env.matching.searchRadiusKm
-  });
-
-  realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_SEARCHING, {
-    rideId: hydratedRide.id,
-    candidate_count: candidates.length,
-    radius_km: env.matching.searchRadiusKm
-  });
-
-  if (candidates.length === 0) {
-    realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_MATCHING_FAILED, {
+  try {
+    const hydratedRide = await rideRepository.findById(ride.id);
+    
+    logger.info('Starting driver matching process', {
       rideId: hydratedRide.id,
-      message: 'No approved online drivers were found nearby.'
+      pickupLat: hydratedRide.pickupLat,
+      pickupLng: hydratedRide.pickupLng,
+      vehicleType: hydratedRide.vehicleType
+    });
+
+    const candidates = await findNearestDrivers({
+      pickupLat: hydratedRide.pickupLat,
+      pickupLng: hydratedRide.pickupLng,
+      limit: 15,
+      radiusKm: env.matching.searchRadiusKm
+    });
+
+    logger.info('Driver search completed', {
+      rideId: hydratedRide.id,
+      candidateCount: candidates.length,
+      radiusKm: env.matching.searchRadiusKm
+    });
+
+    // Safe emit - check if realtimeGateway is initialized
+    try {
+      realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_SEARCHING, {
+        rideId: hydratedRide.id,
+        candidate_count: candidates.length,
+        radius_km: env.matching.searchRadiusKm
+      });
+    } catch (socketError) {
+      logger.warn('Failed to emit RIDE_SEARCHING event (Socket.IO not ready)', {
+        rideId: hydratedRide.id,
+        error: socketError.message
+      });
+    }
+
+    if (candidates.length === 0) {
+      logger.warn('No drivers found for ride', {
+        rideId: hydratedRide.id,
+        pickupLat: hydratedRide.pickupLat,
+        pickupLng: hydratedRide.pickupLng
+      });
+      
+      try {
+        realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_MATCHING_FAILED, {
+          rideId: hydratedRide.id,
+          message: 'No approved online drivers were found nearby.'
+        });
+      } catch (socketError) {
+        logger.warn('Failed to emit RIDE_MATCHING_FAILED event', {
+          rideId: hydratedRide.id,
+          error: socketError.message
+        });
+      }
+
+      return {
+        matchedDrivers: 0,
+        status: 'no_drivers_found'
+      };
+    }
+
+    logger.info('Setting up matching queue', {
+      rideId: hydratedRide.id,
+      candidateCount: candidates.length
+    });
+
+    activeMatchQueues.set(hydratedRide.id, {
+      rideId: hydratedRide.id,
+      riderId: hydratedRide.riderId,
+      accepted: false,
+      cursor: 0,
+      candidates,
+      activeDriverIds: [],
+      timeout: null
+    });
+
+    await dispatchBatch(hydratedRide.id);
+
+    logger.info('Matching dispatch initiated', {
+      rideId: hydratedRide.id,
+      dispatchedDrivers: Math.min(candidates.length, env.matching.maxInitialDrivers)
     });
 
     return {
+      matchedDrivers: candidates.length,
+      dispatchedDrivers: Math.min(candidates.length, env.matching.maxInitialDrivers),
+      status: 'searching'
+    };
+  } catch (error) {
+    logger.error('Matching process failed', {
+      rideId: ride.id,
+      error: error.message,
+      stack: error.stack
+    });
+    
+    // Return safe response instead of throwing - prevents 502
+    return {
       matchedDrivers: 0,
-      status: 'no_drivers_found'
+      status: 'matching_failed',
+      error: error.message
     };
   }
-
-  activeMatchQueues.set(hydratedRide.id, {
-    rideId: hydratedRide.id,
-    riderId: hydratedRide.riderId,
-    accepted: false,
-    cursor: 0,
-    candidates,
-    activeDriverIds: [],
-    timeout: null
-  });
-
-  await dispatchBatch(hydratedRide.id);
-
-  return {
-    matchedDrivers: candidates.length,
-    dispatchedDrivers: Math.min(candidates.length, env.matching.maxInitialDrivers),
-    status: 'searching'
-  };
 };
 
 const ensureDriverCanAccept = (queue, driverId) => {

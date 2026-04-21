@@ -56,6 +56,12 @@ module.exports = (sequelize, DataTypes) =>
         type: DataTypes.DECIMAL(10, 2),
         allowNull: true
       },
+      vehicleType: {
+        type: DataTypes.STRING(20),
+        allowNull: true,
+        defaultValue: 'economy',
+        field: 'vehicle_type'
+      },
       rideOtp: {
         type: DataTypes.STRING(10),
         allowNull: false,
