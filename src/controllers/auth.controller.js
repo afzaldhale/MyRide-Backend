@@ -85,6 +85,7 @@ const logoutAll = asyncHandler(async (req, res) => {
 module.exports = {
   sendOtp,
   verifyOtp,
+  googleSignin,
   refreshToken,
   logout,
   logoutAll

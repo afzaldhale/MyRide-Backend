@@ -10,6 +10,14 @@ const authSchemas = require('../validators/auth.validator');
 
 const router = express.Router();
 
+// Debug checks
+console.log("sendOtp:", typeof authController.sendOtp);
+console.log("verifyOtp:", typeof authController.verifyOtp);
+console.log("googleSignin:", typeof authController.googleSignin);
+console.log("refreshToken:", typeof authController.refreshToken);
+console.log("logout:", typeof authController.logout);
+console.log("logoutAll:", typeof authController.logoutAll);
+
 router.post(
   '/send-otp',
   validateSchema(authSchemas.sendOtp),
@@ -18,10 +26,36 @@ router.post(
   otpRateLimiter,
   authController.sendOtp
 );
-router.post('/verify-otp', validateSchema(authSchemas.verifyOtp), authController.verifyOtp);
-router.post('/google-signin', validateSchema(authSchemas.googleSignin), deviceValidator, authController.googleSignin);
-router.post('/refresh-token', validateSchema(authSchemas.refreshToken), authController.refreshToken);
-router.post('/logout', authenticate, authController.logout);
-router.post('/logout-all', authenticate, authController.logoutAll);
+
+router.post(
+  '/verify-otp',
+  validateSchema(authSchemas.verifyOtp),
+  authController.verifyOtp
+);
+
+router.post(
+  '/google-signin',
+  validateSchema(authSchemas.googleSignin),
+  deviceValidator,
+  authController.googleSignin
+);
+
+router.post(
+  '/refresh-token',
+  validateSchema(authSchemas.refreshToken),
+  authController.refreshToken
+);
+
+router.post(
+  '/logout',
+  authenticate,
+  authController.logout
+);
+
+router.post(
+  '/logout-all',
+  authenticate,
+  authController.logoutAll
+);
 
 module.exports = router;
