@@ -1,3 +1,8 @@
+// Emit arbitrary event to all (for admin events)
+const emit = (event, payload) => {
+  if (!ioInstance) return;
+  ioInstance.emit(event, payload);
+};
 const logger = require('../config/logger');
 const socketRegistry = require('./socketRegistry.service');
 
@@ -91,4 +96,5 @@ module.exports = {
   attachRideParticipants,
   syncDriverSession,
   emitGatewayHealth
+  ,emit
 };

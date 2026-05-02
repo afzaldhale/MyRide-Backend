@@ -13,6 +13,17 @@ router.get('/dashboard', adminController.getDashboard);
 router.get('/users', adminController.getUsers);
 router.get('/drivers', adminController.getDrivers);
 router.get('/rides', adminController.getRides);
+
+const adminSchemas = require('../validators/admin.validator');
+const validateSchema = require('../middleware/validateSchema');
+
+// KYC approval/rejection route
+router.patch(
+	'/drivers/:id/kyc',
+	validateSchema(adminSchemas.updateDriverKyc),
+	adminController.updateDriverKyc
+);
+
 router.patch('/driver/:id/approve', adminController.approveDriver);
 
 module.exports = router;

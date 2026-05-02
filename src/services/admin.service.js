@@ -1,3 +1,41 @@
+const { sequelize } = require('../db/sequelize');
+const driverRepository = require('../repositories/driver.repository');
+const { KYC_STATUSES } = require('../utils/constants');
+const ApiError = require('../utils/apiError');
+// Find driver by ID (service helper)
+const findDriverById = async (driverId) => {
+  return driverRepository.findById(driverId);
+};
+
+// Update driver KYC status (main logic)
+const updateDriverKyc = async ({ driverId, status, rejectionReason, adminId }) => {
+  return await sequelize.transaction(async (transaction) => {
+    const driver = await driverRepository.findById(driverId, transaction);
+    if (!driver) throw new ApiError(404, 'Driver not found');
+
+    let updateFields = {};
+    if (status === KYC_STATUSES.APPROVED) {
+      updateFields = {
+        is_approved: true,
+        kycStatus: KYC_STATUSES.APPROVED,
+        rejection_reason: null
+      };
+    } else if (status === KYC_STATUSES.REJECTED) {
+      updateFields = {
+        is_approved: false,
+        kycStatus: KYC_STATUSES.REJECTED,
+        rejection_reason: rejectionReason || null
+      };
+    } else {
+      throw new ApiError(422, 'Invalid status');
+    }
+
+    await driver.update(updateFields, { transaction });
+    // Optionally: log adminId, driverId, action
+    // Optionally: emit event here if needed
+    return driver;
+  });
+};
 const { Op } = require('sequelize');
 
 const { Driver, Ride, User } = require('../models');
@@ -200,4 +238,6 @@ module.exports = {
   getDrivers,
   getRides,
   approveDriver: driverService.approveDriver
+  ,findDriverById
+  ,updateDriverKyc
 };
