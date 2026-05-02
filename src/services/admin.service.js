@@ -1,6 +1,7 @@
 const { Op } = require('sequelize');
 
 const { Driver, Ride, User } = require('../models');
+const driverService = require('./driver.service');
 const { getDistanceInKm } = require('../utils/distance');
 
 const getTodayRange = () => {
@@ -200,4 +201,3 @@ module.exports = {
   getRides,
   approveDriver: driverService.approveDriver
 };
-const driverService = require('./driver.service');
