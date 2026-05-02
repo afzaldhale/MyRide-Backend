@@ -47,18 +47,15 @@ const getProfile = async (user) => {
 };
 
 const submitKyc = async (user, payload, files = {}) => {
-  if (!files.licenseImageUrl || !files.rcImageUrl || !files.profilePhotoUrl) {
-    throw new ApiError(400, 'License image, RC image, and profile photo are required');
-  }
-
+  // Only save text fields, ignore images for now
   await sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
 
     await userRepository.updateUser(
       user.id,
       {
-        name: payload.fullName,
-        profilePhoto: files.profilePhotoUrl
+        name: payload.fullName
+        // profilePhoto: files.profilePhotoUrl // skip image
       },
       transaction
     );
@@ -68,9 +65,9 @@ const submitKyc = async (user, payload, files = {}) => {
       vehicleType: payload.vehicleType,
       vehicleNumber: payload.vehicleNumber,
       licenseNumber: payload.licenseNumber,
-      licenseImageUrl: files.licenseImageUrl,
-      rcImageUrl: files.rcImageUrl,
-      profilePhotoUrl: files.profilePhotoUrl,
+      // licenseImageUrl: files.licenseImageUrl, // skip image
+      // rcImageUrl: files.rcImageUrl, // skip image
+      // profilePhotoUrl: files.profilePhotoUrl, // skip image
       isProfileComplete: true,
       isApproved: false,
       isOnline: false,
