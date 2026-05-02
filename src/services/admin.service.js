@@ -197,5 +197,7 @@ module.exports = {
   getDashboardSummary,
   getUsers,
   getDrivers,
-  getRides
+  getRides,
+  approveDriver: driverService.approveDriver
 };
+const driverService = require('./driver.service');

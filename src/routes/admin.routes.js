@@ -13,5 +13,6 @@ router.get('/dashboard', adminController.getDashboard);
 router.get('/users', adminController.getUsers);
 router.get('/drivers', adminController.getDrivers);
 router.get('/rides', adminController.getRides);
+router.patch('/driver/:id/approve', adminController.approveDriver);
 
 module.exports = router;

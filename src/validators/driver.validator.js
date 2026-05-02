@@ -3,9 +3,10 @@ const Joi = require('joi');
 const driverSchemas = {
   submitKyc: {
     body: Joi.object({
-      vehicle_type: Joi.string().trim().min(2).max(80).required(),
-      vehicle_number: Joi.string().trim().min(4).max(50).required(),
-      license_number: Joi.string().trim().min(6).max(80).required()
+      fullName: Joi.string().trim().min(2).max(120).required(),
+      vehicleType: Joi.string().trim().min(2).max(80).required(),
+      vehicleNumber: Joi.string().trim().min(4).max(50).required(),
+      licenseNumber: Joi.string().trim().min(6).max(80).required()
     })
   },
   setOnlineStatus: {

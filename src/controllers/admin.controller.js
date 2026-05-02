@@ -80,10 +80,20 @@ const getRides = asyncHandler(async (req, res) => {
   });
 });
 
+const approveDriver = asyncHandler(async (req, res) => {
+  const data = await adminService.approveDriver(req.params.id);
+
+  return sendSuccess(res, {
+    message: 'Driver approved successfully',
+    data
+  });
+});
+
 module.exports = {
   loginAdmin,
   getDashboard,
   getUsers,
   getDrivers,
-  getRides
+  getRides,
+  approveDriver
 };

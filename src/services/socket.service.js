@@ -12,6 +12,7 @@ const socketRegistry = require('./socketRegistry.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const matchingService = require('./matching.service');
 const driverService = require('./driver.service');
+const nearbyDriversService = require('./nearbyDrivers.service');
 const cacheService = require('./cache.service');
 const sessionService = require('./session.service');
 const tokenService = require('./token.service');
@@ -73,7 +74,17 @@ const assertValidCoordinates = (payload) => {
   return { lat, lng };
 };
 
-const handleDriverLocationUpdate = async (socket, payload) => {
+const normalizeLocationMeta = (payload) => {
+  const heading = Number(payload?.heading);
+  const speed = Number(payload?.speed);
+
+  return {
+    heading: Number.isNaN(heading) ? 0 : heading,
+    speed: Number.isNaN(speed) ? 0 : speed
+  };
+};
+
+const handleDriverLocationUpdate = async (io, socket, payload) => {
   const user = socket.data.user;
   const driverProfile = socket.data.driverProfile;
 
@@ -95,15 +106,20 @@ const handleDriverLocationUpdate = async (socket, payload) => {
   }
 
   const { lat, lng } = assertValidCoordinates(payload);
+  const { heading, speed } = normalizeLocationMeta(payload);
   const timestamp = Date.now();
 
   socket.data.lastLocationUpdateAt = timestamp;
 
-  await locationStore.setDriverLocation(driverProfile.id, {
+  const location = await locationStore.setDriverLocation(driverProfile.id, {
     lat,
     lng,
+    heading,
+    speed,
     timestamp
   });
+
+  nearbyDriversService.emitDriverLocationToSubscribers(io, driverProfile, location);
 
   if (payload?.rideId) {
     realtimeGateway.emitToRide(payload.rideId, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, {
@@ -111,6 +127,8 @@ const handleDriverLocationUpdate = async (socket, payload) => {
       driverId: driverProfile.id,
       lat,
       lng,
+      heading,
+      speed,
       timestamp
     });
   }
@@ -128,13 +146,33 @@ const registerSocketLifecycle = (io, socket) => {
 
   socket.on(SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, async (payload = {}) => {
     try {
-      await handleDriverLocationUpdate(socket, payload);
+      await handleDriverLocationUpdate(io, socket, payload);
     } catch (error) {
       socket.emit('error', {
         message: error.message,
         code: error.statusCode || 500
       });
     }
+  });
+
+  socket.on(SOCKET_EVENTS.DRIVERS_NEARBY_SUBSCRIBE, async (payload = {}) => {
+    try {
+      if (user.role !== USER_ROLES.RIDER) {
+        throw new ApiError(403, 'Only authenticated riders can subscribe to nearby drivers');
+      }
+
+      nearbyDriversService.setNearbySubscription(socket, payload);
+      await nearbyDriversService.emitNearbyDriversSnapshot(socket);
+    } catch (error) {
+      socket.emit('error', {
+        message: error.message,
+        code: error.statusCode || 500
+      });
+    }
+  });
+
+  socket.on(SOCKET_EVENTS.DRIVERS_NEARBY_UNSUBSCRIBE, () => {
+    nearbyDriversService.removeNearbySubscription(socket.id);
   });
 
   socket.on(SOCKET_EVENTS.RIDE_ACCEPT, async (payload = {}) => {
@@ -184,12 +222,14 @@ const registerSocketLifecycle = (io, socket) => {
   });
 
   socket.on('disconnect', async () => {
+    nearbyDriversService.removeNearbySubscription(socket.id);
     const driverId = socket.data.driverProfile?.id;
     if (driverId) {
       socketRegistry.unregisterDriverSocket(driverId, socket.id);
       if (socketRegistry.getDriverSocketIds(driverId).length === 0) {
         try {
           await locationStore.removeDriverLocation(driverId);
+          nearbyDriversService.emitDriverOfflineToSubscribers(io, driverId);
         } catch (error) {
           logger.warn('Failed to clear driver location on disconnect', {
             driverId,

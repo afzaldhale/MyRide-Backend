@@ -2,8 +2,17 @@ const driverService = require('../services/driver.service');
 const { sendSuccess } = require('../utils/apiResponse');
 const asyncHandler = require('../utils/asyncHandler');
 
+const getProfile = asyncHandler(async (req, res) => {
+  const profile = await driverService.getProfile(req.user);
+
+  return sendSuccess(res, {
+    message: 'Driver profile fetched successfully',
+    data: profile
+  });
+});
+
 const submitKyc = asyncHandler(async (req, res) => {
-  const driver = await driverService.submitKyc(req.user, req.body);
+  const driver = await driverService.submitKyc(req.user, req.body, req.driverKycFiles);
 
   return sendSuccess(res, {
     message: 'Driver KYC submitted successfully',
@@ -57,6 +66,7 @@ const endRide = asyncHandler(async (req, res) => {
 });
 
 module.exports = {
+  getProfile,
   submitKyc,
   setOnlineStatus,
   getAvailableRides,

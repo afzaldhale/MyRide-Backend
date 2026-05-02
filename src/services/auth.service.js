@@ -54,10 +54,17 @@ const buildAuthPayload = ({ user, driverProfile, accessToken, refreshToken, sess
   driver: driverProfile
     ? {
         id: driverProfile.id,
+        full_name: driverProfile.fullName,
         kyc_status: driverProfile.kycStatus,
         is_online: driverProfile.isOnline,
+        is_profile_complete: driverProfile.isProfileComplete,
+        is_approved: driverProfile.isApproved,
         vehicle_type: driverProfile.vehicleType,
-        vehicle_number: driverProfile.vehicleNumber
+        vehicle_number: driverProfile.vehicleNumber,
+        license_number: driverProfile.licenseNumber,
+        license_image_url: driverProfile.licenseImageUrl,
+        rc_image_url: driverProfile.rcImageUrl,
+        profile_photo_url: driverProfile.profilePhotoUrl
       }
     : null
 });

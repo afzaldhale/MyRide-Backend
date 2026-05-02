@@ -14,6 +14,8 @@ const persistToRedis = async (driverId, location) => {
   await redis.hset(buildRedisKey(driverId), {
     lat: String(location.lat),
     lng: String(location.lng),
+    heading: String(location.heading ?? 0),
+    speed: String(location.speed ?? 0),
     timestamp: String(location.timestamp)
   });
 };
@@ -32,6 +34,8 @@ const hydrateFromRedis = async (driverId) => {
   const location = {
     lat: Number(data.lat),
     lng: Number(data.lng),
+    heading: Number(data.heading || 0),
+    speed: Number(data.speed || 0),
     timestamp: Number(data.timestamp)
   };
 
@@ -70,6 +74,39 @@ const getDriverLocations = async (driverIds) => {
   return new Map(results.filter(([, location]) => Boolean(location)));
 };
 
+const getNearbyDriverLocations = ({ lat, lng, radiusKm, distanceCalculator }) => {
+  const latitude = Number(lat);
+  const longitude = Number(lng);
+  const radius = Number(radiusKm);
+
+  if (
+    Number.isNaN(latitude) ||
+    Number.isNaN(longitude) ||
+    Number.isNaN(radius) ||
+    typeof distanceCalculator !== 'function'
+  ) {
+    return [];
+  }
+
+  return Array.from(driverLocations.entries())
+    .map(([driverId, location]) => {
+      const distanceKm = distanceCalculator(
+        Number(location.lat),
+        Number(location.lng),
+        latitude,
+        longitude
+      );
+
+      return {
+        driverId,
+        location,
+        distanceKm
+      };
+    })
+    .filter((candidate) => candidate.distanceKm <= radius)
+    .sort((left, right) => left.distanceKm - right.distanceKm);
+};
+
 const removeDriverLocation = async (driverId) => {
   driverLocations.delete(driverId);
 
@@ -88,6 +125,7 @@ module.exports = {
   setDriverLocation,
   getDriverLocation,
   getDriverLocations,
+  getNearbyDriverLocations,
   removeDriverLocation,
   getDriverLocationsSnapshot
 };

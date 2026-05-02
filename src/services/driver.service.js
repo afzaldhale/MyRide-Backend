@@ -18,23 +18,76 @@ const getDriverProfileOrFail = async (userId, transaction) => {
   return driverProfile;
 };
 
-const submitKyc = async (user, payload) => {
-  const driverProfile = await getDriverProfileOrFail(user.id);
+const mapDriverProfile = (driverProfile) => ({
+  id: driverProfile.id,
+  userId: driverProfile.userId,
+  fullName: driverProfile.fullName,
+  vehicleType: driverProfile.vehicleType,
+  vehicleNumber: driverProfile.vehicleNumber,
+  licenseNumber: driverProfile.licenseNumber,
+  licenseImageUrl: driverProfile.licenseImageUrl,
+  rcImageUrl: driverProfile.rcImageUrl,
+  profilePhotoUrl: driverProfile.profilePhotoUrl,
+  isProfileComplete: Boolean(driverProfile.isProfileComplete),
+  isApproved: Boolean(driverProfile.isApproved),
+  kycStatus: driverProfile.kycStatus,
+  isOnline: Boolean(driverProfile.isOnline),
+  createdAt: driverProfile.createdAt
+});
 
-  await driverRepository.updateDriverProfile(driverProfile, {
-    vehicleType: payload.vehicle_type,
-    vehicleNumber: payload.vehicle_number,
-    licenseNumber: payload.license_number,
-    kycStatus: KYC_STATUSES.PENDING
+const buildProfileResponse = (driverProfile) => ({
+  isProfileComplete: Boolean(driverProfile.isProfileComplete),
+  isApproved: Boolean(driverProfile.isApproved),
+  driver: mapDriverProfile(driverProfile)
+});
+
+const getProfile = async (user) => {
+  const driverProfile = await getDriverProfileOrFail(user.id);
+  return buildProfileResponse(driverProfile);
+};
+
+const submitKyc = async (user, payload, files = {}) => {
+  if (!files.licenseImageUrl || !files.rcImageUrl || !files.profilePhotoUrl) {
+    throw new ApiError(400, 'License image, RC image, and profile photo are required');
+  }
+
+  await sequelize.transaction(async (transaction) => {
+    const driverProfile = await getDriverProfileOrFail(user.id, transaction);
+
+    await userRepository.updateUser(
+      user.id,
+      {
+        name: payload.fullName,
+        profilePhoto: files.profilePhotoUrl
+      },
+      transaction
+    );
+
+    await driverRepository.updateDriverProfile(driverProfile, {
+      fullName: payload.fullName,
+      vehicleType: payload.vehicleType,
+      vehicleNumber: payload.vehicleNumber,
+      licenseNumber: payload.licenseNumber,
+      licenseImageUrl: files.licenseImageUrl,
+      rcImageUrl: files.rcImageUrl,
+      profilePhotoUrl: files.profilePhotoUrl,
+      isProfileComplete: true,
+      isApproved: false,
+      isOnline: false,
+      kycStatus: KYC_STATUSES.PENDING
+    }, transaction);
   });
 
   const updatedDriver = await driverRepository.findByUserId(user.id);
   realtimeGateway.syncDriverSession(updatedDriver.id, {
-    kycStatus: updatedDriver.kycStatus
+    kycStatus: updatedDriver.kycStatus,
+    isOnline: updatedDriver.isOnline,
+    isApproved: updatedDriver.isApproved,
+    isProfileComplete: updatedDriver.isProfileComplete
   });
   await userRepository.invalidateAuthUserCache(user.id);
 
-  return updatedDriver;
+  return buildProfileResponse(updatedDriver);
 };
 
 const setOnlineStatus = async (user, isOnline) => {
@@ -145,14 +198,43 @@ const endRide = async (user, rideId) =>
     return rideRepository.findById(rideId, transaction);
   }).then((ride) => {
     matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_END, ride);
-    return ride;
+  return ride;
   });
 
+const approveDriver = async (driverId) => {
+  await sequelize.transaction(async (transaction) => {
+    const driverProfile = await driverRepository.findById(driverId, transaction);
+
+    if (!driverProfile) {
+      throw new ApiError(404, 'Driver profile not found');
+    }
+
+    await driverRepository.updateDriverProfile(driverProfile, {
+      isApproved: true,
+      isProfileComplete: true,
+      kycStatus: KYC_STATUSES.APPROVED
+    }, transaction);
+  });
+
+  const updatedDriver = await driverRepository.findById(driverId);
+
+  realtimeGateway.syncDriverSession(updatedDriver.id, {
+    kycStatus: updatedDriver.kycStatus,
+    isApproved: updatedDriver.isApproved,
+    isProfileComplete: updatedDriver.isProfileComplete
+  });
+  await userRepository.invalidateAuthUserCache(updatedDriver.userId);
+
+  return buildProfileResponse(updatedDriver);
+};
+
 module.exports = {
+  getProfile,
   submitKyc,
   setOnlineStatus,
   getAvailableRides,
   acceptRide,
   startRide,
-  endRide
+  endRide,
+  approveDriver
 };
