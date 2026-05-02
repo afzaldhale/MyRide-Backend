@@ -38,7 +38,7 @@ const updateDriverKyc = asyncHandler(async (req, res) => {
   if (realtimeGateway.emit) {
     realtimeGateway.emit('driver:kyc:updated', {
       driverId: updatedDriver.id,
-      isApproved: updatedDriver.is_approved
+      isApproved: updatedDriver.isApproved
     });
   }
 

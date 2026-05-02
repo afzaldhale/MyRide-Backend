@@ -1,4 +1,4 @@
-const { sequelize } = require('../db/sequelize');
+const sequelize = require('../db/sequelize');
 const driverRepository = require('../repositories/driver.repository');
 const { KYC_STATUSES } = require('../utils/constants');
 const ApiError = require('../utils/apiError');
