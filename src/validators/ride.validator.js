@@ -9,6 +9,8 @@ const rideSchemas = {
       pickup_lng: coordinateRule,
       drop_lat: Joi.number().min(-90).max(90).required(),
       drop_lng: coordinateRule,
+      pickup_address: Joi.string().trim().max(255).allow('', null).optional(),
+      drop_address: Joi.string().trim().max(255).allow('', null).optional(),
       fare: Joi.number().min(0).optional(),
       vehicleType: Joi.string()
         .valid('auto', 'economy', 'comfort', 'premium', 'xl', 'mini', 'sedan')

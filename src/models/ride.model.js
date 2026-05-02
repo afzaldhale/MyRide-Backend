@@ -41,6 +41,16 @@ module.exports = (sequelize, DataTypes) =>
         allowNull: false,
         field: 'drop_lng'
       },
+      pickupAddress: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'pickup_address'
+      },
+      dropAddress: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        field: 'drop_address'
+      },
       status: {
         type: DataTypes.ENUM(
           RIDE_STATUSES.REQUESTED,

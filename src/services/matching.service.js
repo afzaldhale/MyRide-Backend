@@ -20,6 +20,8 @@ const buildRideRequestPayload = (ride, distanceKm) => ({
     lat: Number(ride.dropLat),
     lng: Number(ride.dropLng)
   },
+  pickup_address: ride.pickupAddress,
+  drop_address: ride.dropAddress,
   rider: ride.rider
     ? {
         id: ride.rider.id,

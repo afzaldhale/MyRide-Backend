@@ -16,6 +16,8 @@ const requestRide = async (user, payload) => {
       pickup_lng: payload.pickup_lng,
       drop_lat: payload.drop_lat,
       drop_lng: payload.drop_lng,
+      pickup_address: payload.pickup_address,
+      drop_address: payload.drop_address,
       fare: payload.fare,
       vehicleType: payload.vehicleType
     }
@@ -38,6 +40,8 @@ const requestRide = async (user, payload) => {
       pickupLng: payload.pickup_lng,
       dropLat: payload.drop_lat,
       dropLng: payload.drop_lng,
+      pickupAddress: payload.pickup_address || null,
+      dropAddress: payload.drop_address || null,
       fare: payload.fare || null,
       vehicleType: vehicleType || 'economy', // Default to economy if not specified
       rideOtp: generateRideOtp()
@@ -79,7 +83,9 @@ const requestRide = async (user, payload) => {
         pickup_lat: payload.pickup_lat,
         pickup_lng: payload.pickup_lng,
         drop_lat: payload.drop_lat,
-        drop_lng: payload.drop_lng
+        drop_lng: payload.drop_lng,
+        pickup_address: payload.pickup_address,
+        drop_address: payload.drop_address
       }
     });
     throw error;
