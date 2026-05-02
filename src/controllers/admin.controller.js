@@ -53,13 +53,6 @@ const updateDriverKyc = asyncHandler(async (req, res) => {
     data: updatedDriver
   });
 });
-const jwt = require('jsonwebtoken');
-
-const env = require('../config/env');
-const adminService = require('../services/admin.service');
-const ApiError = require('../utils/apiError');
-const { sendSuccess } = require('../utils/apiResponse');
-const asyncHandler = require('../utils/asyncHandler');
 
 const loginAdmin = asyncHandler(async (req, res) => {
   const { email, password } = req.body || {};
