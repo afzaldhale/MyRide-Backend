@@ -3,7 +3,7 @@ const Joi = require('joi');
 const adminSchemas = {
   updateDriverKyc: {
     params: Joi.object({
-      id: Joi.number().integer().positive().required()
+      id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
     }),
     body: Joi.object({
       status: Joi.string().valid('approved', 'rejected').required(),

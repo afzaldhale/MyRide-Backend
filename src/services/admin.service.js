@@ -2,6 +2,8 @@ const { sequelize } = require('../db/sequelize');
 const driverRepository = require('../repositories/driver.repository');
 const { KYC_STATUSES } = require('../utils/constants');
 const ApiError = require('../utils/apiError');
+const realtimeGateway = require('./realtimeGateway.service');
+const userRepository = require('../repositories/user.repository');
 // Find driver by ID (service helper)
 const findDriverById = async (driverId) => {
   return driverRepository.findById(driverId);
@@ -16,24 +18,34 @@ const updateDriverKyc = async ({ driverId, status, rejectionReason, adminId }) =
     let updateFields = {};
     if (status === KYC_STATUSES.APPROVED) {
       updateFields = {
-        is_approved: true,
+        isApproved: true,
         kycStatus: KYC_STATUSES.APPROVED,
-        rejection_reason: null
+        isProfileComplete: true
       };
     } else if (status === KYC_STATUSES.REJECTED) {
       updateFields = {
-        is_approved: false,
+        isApproved: false,
         kycStatus: KYC_STATUSES.REJECTED,
-        rejection_reason: rejectionReason || null
+        isOnline: false
       };
     } else {
       throw new ApiError(422, 'Invalid status');
     }
 
-    await driver.update(updateFields, { transaction });
+    await driverRepository.updateDriverProfile(driver, updateFields, transaction);
     // Optionally: log adminId, driverId, action
     // Optionally: emit event here if needed
-    return driver;
+    return driverRepository.findById(driverId, transaction);
+  }).then(async (updatedDriver) => {
+    realtimeGateway.syncDriverSession(updatedDriver.id, {
+      kycStatus: updatedDriver.kycStatus,
+      isOnline: updatedDriver.isOnline,
+      isApproved: updatedDriver.isApproved,
+      isProfileComplete: updatedDriver.isProfileComplete
+    });
+    await userRepository.invalidateAuthUserCache(updatedDriver.userId);
+
+    return updatedDriver;
   });
 };
 const { Op } = require('sequelize');
