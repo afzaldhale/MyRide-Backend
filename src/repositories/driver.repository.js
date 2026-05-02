@@ -1,4 +1,4 @@
-const { Driver, User, Subscription } = require('../models');
+const { Driver, User } = require('../models');
 const { KYC_STATUSES } = require('../utils/constants');
 
 const createDriverProfile = (payload, transaction) =>
@@ -13,10 +13,6 @@ const findByUserId = (userId, transaction) =>
       {
         model: User,
         as: 'user'
-      },
-      {
-        model: Subscription,
-        as: 'subscriptions'
       }
     ],
     transaction
