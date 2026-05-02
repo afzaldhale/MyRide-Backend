@@ -4,6 +4,7 @@ const driverSchemas = {
   submitKyc: {
     body: Joi.object({
       fullName: Joi.string().trim().min(2).max(120).required(),
+      phoneNumber: Joi.string().trim().min(10).max(16).required(),
       vehicleType: Joi.string().trim().min(2).max(80).required(),
       vehicleNumber: Joi.string().trim().min(4).max(50).required(),
       licenseNumber: Joi.string().trim().min(6).max(80).required()

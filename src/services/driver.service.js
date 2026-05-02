@@ -7,6 +7,7 @@ const matchingService = require('./matching.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const locationStore = require('./locationStore.service');
 const { KYC_STATUSES, RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
+const { assertValidIndianPhone } = require('../utils/phone');
 
 const getDriverProfileOrFail = async (userId, transaction) => {
   const driverProfile = await driverRepository.findByUserId(userId, transaction);
@@ -47,15 +48,16 @@ const getProfile = async (user) => {
 };
 
 const submitKyc = async (user, payload, files = {}) => {
-  // Only save text fields, ignore images for now
+  const normalizedPhone = assertValidIndianPhone(payload.phoneNumber);
+
   await sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
 
     await userRepository.updateUser(
       user.id,
       {
-        name: payload.fullName
-        // profilePhoto: files.profilePhotoUrl // skip image
+        name: payload.fullName,
+        phoneNumber: normalizedPhone.e164
       },
       transaction
     );
