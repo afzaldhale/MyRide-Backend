@@ -265,7 +265,7 @@ const markRideAccepted = async (ride) => {
   await realtimeGateway.attachRideParticipants({
     rideId: hydratedRide.id,
     riderId: hydratedRide.riderId,
-    driverId: hydratedRide.driverId
+    driverId: hydratedRide.driver?.id || hydratedRide.driverId
   });
 
   realtimeGateway.emitToRide(hydratedRide.id, SOCKET_EVENTS.RIDE_ACCEPT, {

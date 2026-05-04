@@ -121,7 +121,7 @@ const getPendingRideRequests = async (user) => {
 
 const getActiveRide = async (user) => {
   const driverProfile = await getDriverProfileOrFail(user.id);
-  return rideRepository.getActiveRideByDriverId(driverProfile.id);
+  return rideRepository.getActiveRideByDriverId(driverProfile.userId);
 };
 
 const acceptRide = async (user, rideId) =>
@@ -137,7 +137,7 @@ const acceptRide = async (user, rideId) =>
       throw new ApiError(404, 'Ride not found');
     }
 
-    const activeRide = await rideRepository.getActiveRideByDriverId(driverProfile.id);
+    const activeRide = await rideRepository.getActiveRideByDriverId(driverProfile.userId);
     if (activeRide && activeRide.id !== rideId) {
       throw new ApiError(409, 'You already have an active ride in progress');
     }
@@ -157,7 +157,7 @@ const acceptRide = async (user, rideId) =>
     await rideRepository.updateRide(
       ride,
       {
-        driverId: driverProfile.id,
+        driverId: driverProfile.userId,
         status: RIDE_STATUSES.ACCEPTED
       },
       transaction
@@ -205,7 +205,7 @@ const updateRideStatus = async (user, rideId, nextStatus) =>
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
     const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
-    if (!ride || ride.driverId !== driverProfile.id) {
+    if (!ride || ride.driverId !== driverProfile.userId) {
       throw new ApiError(404, 'Assigned ride not found');
     }
 
@@ -233,7 +233,7 @@ const startRide = async (user, rideId, rideOtp) =>
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
     const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
-    if (!ride || ride.driverId !== driverProfile.id) {
+    if (!ride || ride.driverId !== driverProfile.userId) {
       throw new ApiError(404, 'Assigned ride not found');
     }
 
@@ -264,7 +264,7 @@ const endRide = async (user, rideId) =>
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
     const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
-    if (!ride || ride.driverId !== driverProfile.id) {
+    if (!ride || ride.driverId !== driverProfile.userId) {
       throw new ApiError(404, 'Assigned ride not found');
     }
 

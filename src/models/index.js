@@ -72,6 +72,7 @@ Driver.hasMany(Ride, {
     name: 'driverId',
     field: 'driver_id'
   },
+  sourceKey: 'userId',
   as: 'rides'
 });
 
@@ -80,6 +81,7 @@ Ride.belongsTo(Driver, {
     name: 'driverId',
     field: 'driver_id'
   },
+  targetKey: 'userId',
   as: 'driver'
 });
 
