@@ -16,6 +16,7 @@ const nearbyDriversService = require('./nearbyDrivers.service');
 const cacheService = require('./cache.service');
 const sessionService = require('./session.service');
 const tokenService = require('./token.service');
+const rideRepository = require('../repositories/ride.repository');
 const ApiError = require('../utils/apiError');
 const { SOCKET_EVENTS, USER_ROLES, KYC_STATUSES } = require('../utils/constants');
 
@@ -143,6 +144,18 @@ const registerSocketLifecycle = (io, socket) => {
     socket.join(realtimeGateway.driverRoom(driverId));
     socketRegistry.registerDriverSocket(driverId, socket.id);
   }
+
+  Promise.resolve()
+    .then(async () => {
+      const activeRide = user.role === USER_ROLES.DRIVER
+        ? await rideRepository.getActiveRideByDriverId(user.id)
+        : await rideRepository.getActiveRideByRiderId(user.id);
+
+      if (activeRide) {
+        socket.join(realtimeGateway.rideRoom(activeRide.id));
+      }
+    })
+    .catch(() => null);
 
   socket.on(SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, async (payload = {}) => {
     try {
