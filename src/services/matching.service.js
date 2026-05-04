@@ -11,17 +11,24 @@ const { RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
 const activeMatchQueues = new Map();
 
 const buildRideRequestPayload = (ride, distanceKm) => ({
+  id: ride.id,
   rideId: ride.id,
+  status: ride.status,
   pickup: {
     lat: Number(ride.pickupLat),
     lng: Number(ride.pickupLng)
   },
+  pickupLat: Number(ride.pickupLat),
+  pickupLng: Number(ride.pickupLng),
+  dropLat: Number(ride.dropLat),
+  dropLng: Number(ride.dropLng),
   drop: {
     lat: Number(ride.dropLat),
     lng: Number(ride.dropLng)
   },
   pickup_address: ride.pickupAddress,
   drop_address: ride.dropAddress,
+  fare: ride.fare,
   rider: ride.rider
     ? {
         id: ride.rider.id,
@@ -94,6 +101,9 @@ const dispatchBatch = async (rideId) => {
   const batch = queue.candidates.slice(queue.cursor, queue.cursor + env.matching.maxInitialDrivers);
 
   if (batch.length === 0) {
+    await rideRepository.updateRide(ride, {
+      status: RIDE_STATUSES.REJECTED
+    });
     realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_MATCHING_FAILED, {
       rideId,
       message: 'No nearby drivers accepted this ride request.'
@@ -163,6 +173,9 @@ const startMatching = async (ride) => {
     }
 
     if (candidates.length === 0) {
+      await rideRepository.updateRide(hydratedRide, {
+        status: RIDE_STATUSES.REJECTED
+      });
       logger.warn('No drivers found for ride', {
         rideId: hydratedRide.id,
         pickupLat: hydratedRide.pickupLat,
@@ -259,13 +272,15 @@ const markRideAccepted = async (ride) => {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
     driver: hydratedRide.driver,
-    rider: hydratedRide.rider
+    rider: hydratedRide.rider,
+    ride: hydratedRide
   });
 
   realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_ACCEPT, {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
-    driver: hydratedRide.driver
+    driver: hydratedRide.driver,
+    ride: hydratedRide
   });
 };
 
@@ -273,14 +288,16 @@ const emitRideStatusUpdate = (eventName, ride) => {
   realtimeGateway.emitToRide(ride.id, eventName, {
     rideId: ride.id,
     status: ride.status,
-    driverId: ride.driverId
+    driverId: ride.driverId,
+    ride
   });
 
   realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_STATUS_UPDATE, {
     rideId: ride.id,
     status: ride.status,
     event: eventName,
-    driverId: ride.driverId
+    driverId: ride.driverId,
+    ride
   });
 };
 

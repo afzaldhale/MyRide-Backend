@@ -25,9 +25,12 @@ module.exports = {
   RIDE_STATUSES: {
     REQUESTED: 'requested',
     ACCEPTED: 'accepted',
-    STARTED: 'started',
+    DRIVER_ARRIVING: 'driver_arriving',
+    ARRIVED: 'arrived',
+    IN_PROGRESS: 'in_progress',
     COMPLETED: 'completed',
-    CANCELLED: 'cancelled'
+    CANCELLED: 'cancelled',
+    REJECTED: 'rejected'
   },
   SUBSCRIPTION_STATUSES: {
     ACTIVE: 'active',

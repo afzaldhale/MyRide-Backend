@@ -27,6 +27,16 @@ const driverSchemas = {
     params: Joi.object({
       id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
     })
+  },
+  updateRideStatus: {
+    body: Joi.object({
+      status: Joi.string()
+        .valid('driver_arriving', 'arrived', 'in_progress', 'completed')
+        .required()
+    }),
+    params: Joi.object({
+      id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
+    })
   }
 };
 

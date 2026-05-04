@@ -51,13 +51,40 @@ module.exports = (sequelize, DataTypes) =>
         allowNull: true,
         field: 'drop_address'
       },
+      rejectedDriverIds: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+        field: 'rejected_driver_ids',
+        get() {
+          const rawValue = this.getDataValue('rejectedDriverIds');
+          if (!rawValue) {
+            return [];
+          }
+
+          try {
+            const parsed = JSON.parse(rawValue);
+            return Array.isArray(parsed) ? parsed : [];
+          } catch (_) {
+            return [];
+          }
+        },
+        set(value) {
+          this.setDataValue(
+            'rejectedDriverIds',
+            JSON.stringify(Array.isArray(value) ? value : [])
+          );
+        }
+      },
       status: {
         type: DataTypes.ENUM(
           RIDE_STATUSES.REQUESTED,
           RIDE_STATUSES.ACCEPTED,
-          RIDE_STATUSES.STARTED,
+          RIDE_STATUSES.DRIVER_ARRIVING,
+          RIDE_STATUSES.ARRIVED,
+          RIDE_STATUSES.IN_PROGRESS,
           RIDE_STATUSES.COMPLETED,
-          RIDE_STATUSES.CANCELLED
+          RIDE_STATUSES.CANCELLED,
+          RIDE_STATUSES.REJECTED
         ),
         allowNull: false,
         defaultValue: RIDE_STATUSES.REQUESTED
@@ -82,11 +109,19 @@ module.exports = (sequelize, DataTypes) =>
         allowNull: false,
         defaultValue: DataTypes.NOW,
         field: 'created_at'
+      },
+      updatedAt: {
+        type: DataTypes.DATE,
+        allowNull: false,
+        defaultValue: DataTypes.NOW,
+        field: 'updated_at'
       }
     },
     {
       tableName: 'rides',
-      timestamps: false,
+      timestamps: true,
+      createdAt: 'createdAt',
+      updatedAt: 'updatedAt',
       indexes: [
         {
           fields: ['rider_id', 'created_at']

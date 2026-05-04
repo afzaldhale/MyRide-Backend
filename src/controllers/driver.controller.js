@@ -29,12 +29,21 @@ const setOnlineStatus = asyncHandler(async (req, res) => {
   });
 });
 
-const getAvailableRides = asyncHandler(async (req, res) => {
-  const rides = await driverService.getAvailableRides(req.user);
+const getPendingRideRequests = asyncHandler(async (req, res) => {
+  const rides = await driverService.getPendingRideRequests(req.user);
 
   return sendSuccess(res, {
-    message: 'Available rides fetched successfully',
+    message: 'Pending ride requests fetched successfully',
     data: rides
+  });
+});
+
+const getActiveRide = asyncHandler(async (req, res) => {
+  const ride = await driverService.getActiveRide(req.user);
+
+  return sendSuccess(res, {
+    message: ride ? 'Active ride fetched successfully' : 'No active ride found',
+    data: ride
   });
 });
 
@@ -43,6 +52,24 @@ const acceptRide = asyncHandler(async (req, res) => {
 
   return sendSuccess(res, {
     message: 'Ride accepted successfully',
+    data: ride
+  });
+});
+
+const rejectRide = asyncHandler(async (req, res) => {
+  const ride = await driverService.rejectRide(req.user, req.params.id);
+
+  return sendSuccess(res, {
+    message: 'Ride rejected successfully',
+    data: ride
+  });
+});
+
+const updateRideStatus = asyncHandler(async (req, res) => {
+  const ride = await driverService.updateRideStatus(req.user, req.params.id, req.body.status);
+
+  return sendSuccess(res, {
+    message: 'Ride status updated successfully',
     data: ride
   });
 });
@@ -69,8 +96,11 @@ module.exports = {
   getProfile,
   submitKyc,
   setOnlineStatus,
-  getAvailableRides,
+  getPendingRideRequests,
+  getActiveRide,
   acceptRide,
+  rejectRide,
+  updateRideStatus,
   startRide,
   endRide
 };

@@ -94,25 +94,33 @@ const requestRide = async (user, payload) => {
 
 const getMyRides = (user) => rideRepository.getRidesByRiderId(user.id);
 
+const getActiveRide = async (user) => rideRepository.getActiveRideByRiderId(user.id);
+
 const cancelRide = async (user, rideId) =>
   sequelize.transaction(async (transaction) => {
-    const ride = await rideRepository.findById(rideId, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
     if (!ride || ride.riderId !== user.id) {
       throw new ApiError(404, 'Ride not found');
     }
 
     if (
-      ![RIDE_STATUSES.REQUESTED, RIDE_STATUSES.ACCEPTED].includes(ride.status)
+      ![
+        RIDE_STATUSES.REQUESTED,
+        RIDE_STATUSES.ACCEPTED,
+        RIDE_STATUSES.DRIVER_ARRIVING,
+        RIDE_STATUSES.ARRIVED
+      ].includes(ride.status)
     ) {
       throw new ApiError(409, `Ride cannot be cancelled when status is ${ride.status}`);
     }
 
-    await ride.update(
+    await rideRepository.updateRide(
+      ride,
       {
         status: RIDE_STATUSES.CANCELLED
       },
-      { transaction }
+      transaction
     );
 
     return rideRepository.findById(rideId, transaction);
@@ -124,5 +132,6 @@ const cancelRide = async (user, rideId) =>
 module.exports = {
   requestRide,
   getMyRides,
+  getActiveRide,
   cancelRide
 };

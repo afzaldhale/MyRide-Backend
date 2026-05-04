@@ -9,6 +9,13 @@ const locationStore = require('./locationStore.service');
 const { KYC_STATUSES, RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
 const { assertValidIndianPhone } = require('../utils/phone');
 
+const DRIVER_STATUS_TRANSITIONS = {
+  [RIDE_STATUSES.ACCEPTED]: [RIDE_STATUSES.DRIVER_ARRIVING, RIDE_STATUSES.ARRIVED],
+  [RIDE_STATUSES.DRIVER_ARRIVING]: [RIDE_STATUSES.ARRIVED],
+  [RIDE_STATUSES.ARRIVED]: [RIDE_STATUSES.IN_PROGRESS],
+  [RIDE_STATUSES.IN_PROGRESS]: [RIDE_STATUSES.COMPLETED]
+};
+
 const getDriverProfileOrFail = async (userId, transaction) => {
   const driverProfile = await driverRepository.findByUserId(userId, transaction);
 
@@ -107,12 +114,20 @@ const setOnlineStatus = async (user, isOnline) => {
   return updatedDriver;
 };
 
-const getAvailableRides = async () => rideRepository.getAvailableRides();
+const getPendingRideRequests = async (user) => {
+  const driverProfile = await getDriverProfileOrFail(user.id);
+  return rideRepository.getDriverPendingRides(driverProfile.id);
+};
+
+const getActiveRide = async (user) => {
+  const driverProfile = await getDriverProfileOrFail(user.id);
+  return rideRepository.getActiveRideByDriverId(driverProfile.id);
+};
 
 const acceptRide = async (user, rideId) =>
   sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
-    const ride = await rideRepository.findById(rideId, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
     if (!driverProfile.isOnline) {
       throw new ApiError(409, 'Driver must be online before accepting rides');
@@ -122,20 +137,30 @@ const acceptRide = async (user, rideId) =>
       throw new ApiError(404, 'Ride not found');
     }
 
+    const activeRide = await rideRepository.getActiveRideByDriverId(driverProfile.id);
+    if (activeRide && activeRide.id !== rideId) {
+      throw new ApiError(409, 'You already have an active ride in progress');
+    }
+
     if (ride.status !== RIDE_STATUSES.REQUESTED || ride.driverId) {
       throw new ApiError(409, 'Ride is no longer available');
+    }
+
+    if ((ride.rejectedDriverIds || []).includes(driverProfile.id)) {
+      throw new ApiError(409, 'You already rejected this ride request');
     }
 
     if (driverProfile.kycStatus !== KYC_STATUSES.APPROVED) {
       throw new ApiError(403, 'Only approved KYC drivers can accept rides');
     }
 
-    await ride.update(
+    await rideRepository.updateRide(
+      ride,
       {
         driverId: driverProfile.id,
         status: RIDE_STATUSES.ACCEPTED
       },
-      { transaction }
+      transaction
     );
 
     return rideRepository.findById(rideId, transaction);
@@ -144,16 +169,75 @@ const acceptRide = async (user, rideId) =>
     return ride;
   });
 
-const startRide = async (user, rideId, rideOtp) =>
+const rejectRide = async (user, rideId) =>
   sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
-    const ride = await rideRepository.findById(rideId, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
+
+    if (!ride) {
+      throw new ApiError(404, 'Ride not found');
+    }
+
+    if (ride.status !== RIDE_STATUSES.REQUESTED || ride.driverId) {
+      throw new ApiError(409, 'Ride is no longer available');
+    }
+
+    const rejectedDriverIds = Array.from(new Set([...(ride.rejectedDriverIds || []), driverProfile.id]));
+
+    await rideRepository.updateRide(
+      ride,
+      {
+        rejectedDriverIds,
+        status: RIDE_STATUSES.REQUESTED
+      },
+      transaction
+    );
+
+    return rideRepository.findById(rideId, transaction);
+  }).then((ride) => {
+    matchingService.clearMatchQueue(ride.id);
+    matchingService.startMatching(ride).catch(() => null);
+    return ride;
+  });
+
+const updateRideStatus = async (user, rideId, nextStatus) =>
+  sequelize.transaction(async (transaction) => {
+    const driverProfile = await getDriverProfileOrFail(user.id, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
     if (!ride || ride.driverId !== driverProfile.id) {
       throw new ApiError(404, 'Assigned ride not found');
     }
 
-    if (ride.status !== RIDE_STATUSES.ACCEPTED) {
+    const allowedStatuses = DRIVER_STATUS_TRANSITIONS[ride.status] || [];
+    if (!allowedStatuses.includes(nextStatus)) {
+      throw new ApiError(409, `Ride cannot transition from ${ride.status} to ${nextStatus}`);
+    }
+
+    await rideRepository.updateRide(
+      ride,
+      {
+        status: nextStatus
+      },
+      transaction
+    );
+
+    return rideRepository.findById(rideId, transaction);
+  }).then((ride) => {
+    matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_STATUS_UPDATE, ride);
+    return ride;
+  });
+
+const startRide = async (user, rideId, rideOtp) =>
+  sequelize.transaction(async (transaction) => {
+    const driverProfile = await getDriverProfileOrFail(user.id, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
+
+    if (!ride || ride.driverId !== driverProfile.id) {
+      throw new ApiError(404, 'Assigned ride not found');
+    }
+
+    if (ride.status !== RIDE_STATUSES.ARRIVED) {
       throw new ApiError(409, `Ride cannot be started when status is ${ride.status}`);
     }
 
@@ -161,11 +245,12 @@ const startRide = async (user, rideId, rideOtp) =>
       throw new ApiError(400, 'Invalid ride OTP');
     }
 
-    await ride.update(
+    await rideRepository.updateRide(
+      ride,
       {
-        status: RIDE_STATUSES.STARTED
+        status: RIDE_STATUSES.IN_PROGRESS
       },
-      { transaction }
+      transaction
     );
 
     return rideRepository.findById(rideId, transaction);
@@ -177,21 +262,22 @@ const startRide = async (user, rideId, rideOtp) =>
 const endRide = async (user, rideId) =>
   sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
-    const ride = await rideRepository.findById(rideId, transaction);
+    const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
 
     if (!ride || ride.driverId !== driverProfile.id) {
       throw new ApiError(404, 'Assigned ride not found');
     }
 
-    if (ride.status !== RIDE_STATUSES.STARTED) {
+    if (ride.status !== RIDE_STATUSES.IN_PROGRESS) {
       throw new ApiError(409, `Ride cannot be completed when status is ${ride.status}`);
     }
 
-    await ride.update(
+    await rideRepository.updateRide(
+      ride,
       {
         status: RIDE_STATUSES.COMPLETED
       },
-      { transaction }
+      transaction
     );
 
     return rideRepository.findById(rideId, transaction);
@@ -231,8 +317,11 @@ module.exports = {
   getProfile,
   submitKyc,
   setOnlineStatus,
-  getAvailableRides,
+  getPendingRideRequests,
+  getActiveRide,
   acceptRide,
+  rejectRide,
+  updateRideStatus,
   startRide,
   endRide,
   approveDriver

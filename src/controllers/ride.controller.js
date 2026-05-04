@@ -21,6 +21,15 @@ const getMyRides = asyncHandler(async (req, res) => {
   });
 });
 
+const getActiveRide = asyncHandler(async (req, res) => {
+  const ride = await rideService.getActiveRide(req.user);
+
+  return sendSuccess(res, {
+    message: ride ? 'Active ride fetched successfully' : 'No active ride found',
+    data: ride
+  });
+});
+
 const cancelRide = asyncHandler(async (req, res) => {
   const ride = await rideService.cancelRide(req.user, req.params.id);
 
@@ -33,5 +42,6 @@ const cancelRide = asyncHandler(async (req, res) => {
 module.exports = {
   requestRide,
   getMyRides,
+  getActiveRide,
   cancelRide
 };

@@ -178,7 +178,6 @@ const registerSocketLifecycle = (io, socket) => {
   socket.on(SOCKET_EVENTS.RIDE_ACCEPT, async (payload = {}) => {
     try {
       const ride = await driverService.acceptRide(user, payload.rideId);
-      await matchingService.markRideAccepted(ride);
       socket.emit(SOCKET_EVENTS.RIDE_ACCEPT, {
         rideId: ride.id,
         status: ride.status

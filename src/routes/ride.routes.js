@@ -10,6 +10,7 @@ const router = express.Router();
 router.use(authenticate, authorizeRoles('rider'));
 router.post('/request', validateSchema(rideSchemas.requestRide), rideController.requestRide);
 router.get('/my-rides', rideController.getMyRides);
+router.get('/active', rideController.getActiveRide);
 router.post('/cancel/:id', validateSchema(rideSchemas.rideIdParam), rideController.cancelRide);
 
 module.exports = router;
