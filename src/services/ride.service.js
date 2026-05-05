@@ -2,6 +2,7 @@ const sequelize = require('../db/sequelize');
 const rideRepository = require('../repositories/ride.repository');
 const ApiError = require('../utils/apiError');
 const matchingService = require('./matching.service');
+const { attachDriverLocation } = require('./rideTrackingPayload.service');
 const { RIDE_STATUSES } = require('../utils/constants');
 const generateRideOtp = require('../utils/generateRideOtp');
 const logger = require('../config/logger');
@@ -71,7 +72,7 @@ const requestRide = async (user, payload) => {
     });
 
     return {
-      ride: hydratedRide,
+      ride: await attachDriverLocation(hydratedRide),
       matching
     };
   } catch (error) {
@@ -94,7 +95,10 @@ const requestRide = async (user, payload) => {
 
 const getMyRides = (user) => rideRepository.getRidesByRiderId(user.id);
 
-const getActiveRide = async (user) => rideRepository.getActiveRideByRiderId(user.id);
+const getActiveRide = async (user) => {
+  const ride = await rideRepository.getActiveRideByRiderId(user.id);
+  return attachDriverLocation(ride);
+};
 
 const cancelRide = async (user, rideId) =>
   sequelize.transaction(async (transaction) => {
@@ -126,7 +130,7 @@ const cancelRide = async (user, rideId) =>
     return rideRepository.findById(rideId, transaction);
   }).then((ride) => {
     matchingService.cancelMatching(ride);
-    return ride;
+    return attachDriverLocation(ride);
   });
 
 module.exports = {

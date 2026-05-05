@@ -4,6 +4,7 @@ const driverRepository = require('../repositories/driver.repository');
 const rideRepository = require('../repositories/ride.repository');
 const locationStore = require('./locationStore.service');
 const realtimeGateway = require('./realtimeGateway.service');
+const { attachDriverLocation } = require('./rideTrackingPayload.service');
 const ApiError = require('../utils/apiError');
 const { getDistanceInKm } = require('../utils/distance');
 const { RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
@@ -269,6 +270,7 @@ const ensureDriverCanAccept = (queue, driverId) => {
 
 const markRideAccepted = async (ride) => {
   const hydratedRide = ride.driver && ride.rider ? ride : await rideRepository.findById(ride.id);
+  const rideWithTracking = await attachDriverLocation(hydratedRide);
   const queue = activeMatchQueues.get(hydratedRide.id);
 
   if (queue) {
@@ -285,33 +287,35 @@ const markRideAccepted = async (ride) => {
   realtimeGateway.emitToRide(hydratedRide.id, SOCKET_EVENTS.RIDE_ACCEPT, {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
-    driver: hydratedRide.driver,
-    rider: hydratedRide.rider,
-    ride: hydratedRide
+    driver: rideWithTracking.driver,
+    rider: rideWithTracking.rider,
+    ride: rideWithTracking
   });
 
   realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_ACCEPT, {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
-    driver: hydratedRide.driver,
-    ride: hydratedRide
+    driver: rideWithTracking.driver,
+    ride: rideWithTracking
   });
 };
 
-const emitRideStatusUpdate = (eventName, ride) => {
+const emitRideStatusUpdate = async (eventName, ride) => {
+  const rideWithTracking = await attachDriverLocation(ride);
+
   realtimeGateway.emitToRide(ride.id, eventName, {
     rideId: ride.id,
-    status: ride.status,
-    driverId: ride.driverId,
-    ride
+    status: rideWithTracking.status,
+    driverId: rideWithTracking.driverId,
+    ride: rideWithTracking
   });
 
   realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_STATUS_UPDATE, {
     rideId: ride.id,
-    status: ride.status,
+    status: rideWithTracking.status,
     event: eventName,
-    driverId: ride.driverId,
-    ride
+    driverId: rideWithTracking.driverId,
+    ride: rideWithTracking
   });
 };
 

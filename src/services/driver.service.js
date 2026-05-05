@@ -6,6 +6,7 @@ const ApiError = require('../utils/apiError');
 const matchingService = require('./matching.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const locationStore = require('./locationStore.service');
+const { attachDriverLocation } = require('./rideTrackingPayload.service');
 const { KYC_STATUSES, RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
 const { assertValidIndianPhone } = require('../utils/phone');
 
@@ -121,7 +122,8 @@ const getPendingRideRequests = async (user) => {
 
 const getActiveRide = async (user) => {
   const driverProfile = await getDriverProfileOrFail(user.id);
-  return rideRepository.getActiveRideByDriverId(driverProfile.userId);
+  const ride = await rideRepository.getActiveRideByDriverId(driverProfile.userId);
+  return attachDriverLocation(ride);
 };
 
 const acceptRide = async (user, rideId) =>
@@ -166,7 +168,7 @@ const acceptRide = async (user, rideId) =>
     return rideRepository.findById(rideId, transaction);
   }).then(async (ride) => {
     await matchingService.markRideAccepted(ride);
-    return ride;
+    return attachDriverLocation(ride);
   });
 
 const rejectRide = async (user, rideId) =>
@@ -223,9 +225,9 @@ const updateRideStatus = async (user, rideId, nextStatus) =>
     );
 
     return rideRepository.findById(rideId, transaction);
-  }).then((ride) => {
-    matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_STATUS_UPDATE, ride);
-    return ride;
+  }).then(async (ride) => {
+    await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_STATUS_UPDATE, ride);
+    return attachDriverLocation(ride);
   });
 
 const startRide = async (user, rideId, rideOtp) =>
@@ -254,9 +256,9 @@ const startRide = async (user, rideId, rideOtp) =>
     );
 
     return rideRepository.findById(rideId, transaction);
-  }).then((ride) => {
-    matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_START, ride);
-    return ride;
+  }).then(async (ride) => {
+    await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_START, ride);
+    return attachDriverLocation(ride);
   });
 
 const endRide = async (user, rideId) =>
@@ -281,9 +283,9 @@ const endRide = async (user, rideId) =>
     );
 
     return rideRepository.findById(rideId, transaction);
-  }).then((ride) => {
-    matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_END, ride);
-  return ride;
+  }).then(async (ride) => {
+    await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_END, ride);
+    return attachDriverLocation(ride);
   });
 
 const approveDriver = async (driverId) => {
