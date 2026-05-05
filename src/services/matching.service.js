@@ -36,7 +36,7 @@ const buildRideRequestPayload = (ride, distanceKm) => ({
         phone_number: ride.rider.phoneNumber
       }
     : null,
-  distance_km: Number(distanceKm.toFixed(2)),
+  distance_km: typeof distanceKm === 'number' ? Number(distanceKm.toFixed(2)) : null,
   requested_at: ride.createdAt
 });
 
@@ -61,7 +61,7 @@ const findNearestDrivers = async ({ pickupLat, pickupLng, limit, radiusKm }) => 
   const drivers = await driverRepository.findActiveApprovedDrivers();
   const locations = await locationStore.getDriverLocations(drivers.map((driver) => driver.id));
 
-  return drivers
+  const locatedCandidates = drivers
     .map((driver) => {
       const location = locations.get(driver.id);
       if (!location) {
@@ -82,8 +82,17 @@ const findNearestDrivers = async ({ pickupLat, pickupLng, limit, radiusKm }) => 
       };
     })
     .filter((candidate) => candidate && candidate.distanceKm <= radiusKm)
-    .sort((left, right) => left.distanceKm - right.distanceKm)
-    .slice(0, limit);
+    .sort((left, right) => left.distanceKm - right.distanceKm);
+
+  const fallbackCandidates = drivers
+    .filter((driver) => !locations.has(driver.id))
+    .map((driver) => ({
+      driver,
+      location: null,
+      distanceKm: null
+    }));
+
+  return [...locatedCandidates, ...fallbackCandidates].slice(0, limit);
 };
 
 const dispatchBatch = async (rideId) => {
@@ -152,9 +161,14 @@ const startMatching = async (ride) => {
       radiusKm: env.matching.searchRadiusKm
     });
 
+    const locatedCandidateCount = candidates.filter((candidate) => candidate.location).length;
+    const fallbackCandidateCount = candidates.filter((candidate) => !candidate.location).length;
+
     logger.info('Driver search completed', {
       rideId: hydratedRide.id,
       candidateCount: candidates.length,
+      locatedCandidateCount,
+      fallbackCandidateCount,
       radiusKm: env.matching.searchRadiusKm
     });
 
