@@ -193,7 +193,8 @@ const registerSocketLifecycle = (io, socket) => {
       const ride = await driverService.acceptRide(user, payload.rideId);
       socket.emit(SOCKET_EVENTS.RIDE_ACCEPT, {
         rideId: ride.id,
-        status: ride.status
+        status: ride.status,
+        ride
       });
     } catch (error) {
       socket.emit('error', {
@@ -208,7 +209,8 @@ const registerSocketLifecycle = (io, socket) => {
       const ride = await driverService.startRide(user, payload.rideId, payload.ride_otp);
       socket.emit(SOCKET_EVENTS.RIDE_START, {
         rideId: ride.id,
-        status: ride.status
+        status: ride.status,
+        ride
       });
     } catch (error) {
       socket.emit('error', {
@@ -223,7 +225,8 @@ const registerSocketLifecycle = (io, socket) => {
       const ride = await driverService.endRide(user, payload.rideId);
       socket.emit(SOCKET_EVENTS.RIDE_END, {
         rideId: ride.id,
-        status: ride.status
+        status: ride.status,
+        ride
       });
     } catch (error) {
       socket.emit('error', {
