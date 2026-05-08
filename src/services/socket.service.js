@@ -10,6 +10,7 @@ const driverRepository = require('../repositories/driver.repository');
 const locationStore = require('./locationStore.service');
 const socketRegistry = require('./socketRegistry.service');
 const realtimeGateway = require('./realtimeGateway.service');
+const rideTrackingService = require('./rideTracking.service');
 const matchingService = require('./matching.service');
 const driverService = require('./driver.service');
 const nearbyDriversService = require('./nearbyDrivers.service');
@@ -123,15 +124,31 @@ const handleDriverLocationUpdate = async (io, socket, payload) => {
   nearbyDriversService.emitDriverLocationToSubscribers(io, driverProfile, location);
 
   if (payload?.rideId) {
-    realtimeGateway.emitToRide(payload.rideId, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, {
+    const ride = await rideRepository.findById(payload.rideId);
+    if (!ride || ride.driverId !== user.id) {
+      throw new ApiError(403, 'You are not assigned to this ride');
+    }
+
+    const rideLocationPayload = {
       rideId: payload.rideId,
+      room: realtimeGateway.rideRoom(payload.rideId),
       driverId: driverProfile.id,
       lat,
       lng,
       heading,
       speed,
       timestamp
+    };
+
+    realtimeGateway.emitToRide(payload.rideId, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, {
+      ...rideLocationPayload
     });
+
+    realtimeGateway.emitToRide(
+      payload.rideId,
+      SOCKET_EVENTS.RIDE_DRIVER_LOCATION,
+      rideLocationPayload
+    );
   }
 };
 
@@ -152,10 +169,21 @@ const registerSocketLifecycle = (io, socket) => {
         : await rideRepository.getActiveRideByRiderId(user.id);
 
       if (activeRide) {
-        socket.join(realtimeGateway.rideRoom(activeRide.id));
+        await rideTrackingService.joinRideRoom(socket, { rideId: activeRide.id });
       }
     })
     .catch(() => null);
+
+  socket.on(SOCKET_EVENTS.RIDE_JOIN, async (payload = {}) => {
+    try {
+      await rideTrackingService.joinRideRoom(socket, payload);
+    } catch (error) {
+      socket.emit('error', {
+        message: error.message,
+        code: error.statusCode || 500
+      });
+    }
+  });
 
   socket.on(SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, async (payload = {}) => {
     try {
@@ -196,6 +224,7 @@ const registerSocketLifecycle = (io, socket) => {
         status: ride.status,
         ride
       });
+      await rideTrackingService.emitRideSync(ride, socket);
     } catch (error) {
       socket.emit('error', {
         message: error.message,
@@ -212,6 +241,7 @@ const registerSocketLifecycle = (io, socket) => {
         status: ride.status,
         ride
       });
+      await rideTrackingService.emitRideSync(ride, socket);
     } catch (error) {
       socket.emit('error', {
         message: error.message,
@@ -228,6 +258,7 @@ const registerSocketLifecycle = (io, socket) => {
         status: ride.status,
         ride
       });
+      await rideTrackingService.emitRideSync(ride, socket);
     } catch (error) {
       socket.emit('error', {
         message: error.message,

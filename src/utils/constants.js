@@ -53,9 +53,13 @@ module.exports = {
   },
   SOCKET_EVENTS: {
     DRIVER_LOCATION_UPDATE: 'driver:location:update',
+    RIDE_DRIVER_LOCATION: 'ride:driver:location',
     DRIVERS_NEARBY_SUBSCRIBE: 'drivers:nearby:subscribe',
     DRIVERS_NEARBY_UNSUBSCRIBE: 'drivers:nearby:unsubscribe',
     DRIVERS_NEARBY_UPDATE: 'drivers:nearby:update',
+    RIDE_JOIN: 'ride:join',
+    RIDE_JOINED: 'ride:joined',
+    RIDE_SYNC: 'ride:sync',
     RIDE_REQUEST: 'ride:request',
     RIDE_ACCEPT: 'ride:accept',
     RIDE_START: 'ride:start',

@@ -5,6 +5,7 @@ const rideRepository = require('../repositories/ride.repository');
 const locationStore = require('./locationStore.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const { attachDriverLocation } = require('./rideTrackingPayload.service');
+const rideTrackingService = require('./rideTracking.service');
 const ApiError = require('../utils/apiError');
 const { getDistanceInKm } = require('../utils/distance');
 const { RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
@@ -298,10 +299,15 @@ const markRideAccepted = async (ride) => {
     driver: rideWithTracking.driver,
     ride: rideWithTracking
   });
+
+  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking);
+  realtimeGateway.emitToRide(hydratedRide.id, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
+  realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
 };
 
 const emitRideStatusUpdate = async (eventName, ride) => {
   const rideWithTracking = await attachDriverLocation(ride);
+  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking);
 
   realtimeGateway.emitToRide(ride.id, eventName, {
     rideId: ride.id,
@@ -317,6 +323,9 @@ const emitRideStatusUpdate = async (eventName, ride) => {
     driverId: rideWithTracking.driverId,
     ride: rideWithTracking
   });
+
+  realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
+  realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
 };
 
 const cancelMatching = (ride) => {
