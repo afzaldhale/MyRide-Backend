@@ -126,7 +126,50 @@ const getActiveRide = async (user) => {
   return attachDriverLocation(ride);
 };
 
-const acceptRide = async (user, rideId) =>
+const normalizeDriverLocationPayload = (payload = {}) => {
+  const lat = Number(payload.driverLat);
+  const lng = Number(payload.driverLng);
+  const heading = Number(payload.driverHeading);
+  const speed = Number(payload.driverSpeed);
+
+  if (Number.isNaN(lat) || Number.isNaN(lng)) {
+    return null;
+  }
+
+  return {
+    lat,
+    lng,
+    heading: Number.isNaN(heading) ? 0 : heading,
+    speed: Number.isNaN(speed) ? 0 : speed,
+    timestamp: Date.now()
+  };
+};
+
+const emitDriverLocationUpdate = async (ride, driverProfile, location) => {
+  const rideWithTracking = await attachDriverLocation(ride);
+  const payload = {
+    rideId: ride.id,
+    driverId: driverProfile.id,
+    lat: Number(location.lat),
+    lng: Number(location.lng),
+    heading: Number(location.heading || 0),
+    speed: Number(location.speed || 0),
+    timestamp: Number(location.timestamp),
+    ride: rideWithTracking
+  };
+
+  realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, payload);
+  realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_DRIVER_LOCATION, payload);
+  realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_SYNC, {
+    rideId: ride.id,
+    status: rideWithTracking.status,
+    driverId: rideWithTracking.driverId,
+    driverLocation: rideWithTracking.driver_location || null,
+    ride: rideWithTracking
+  });
+};
+
+const acceptRide = async (user, rideId, payload = {}) =>
   sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
     const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
@@ -167,6 +210,21 @@ const acceptRide = async (user, rideId) =>
 
     return rideRepository.findById(rideId, transaction);
   }).then(async (ride) => {
+    const initialLocation =
+      normalizeDriverLocationPayload(payload) ||
+      await locationStore.getDriverLocation((await getDriverProfileOrFail(user.id)).id);
+
+    if (initialLocation) {
+      const driverProfile = await getDriverProfileOrFail(user.id);
+      await locationStore.setDriverLocation(driverProfile.id, {
+        lat: Number(initialLocation.lat),
+        lng: Number(initialLocation.lng),
+        heading: Number(initialLocation.heading || 0),
+        speed: Number(initialLocation.speed || 0),
+        timestamp: Number(initialLocation.timestamp || Date.now())
+      });
+    }
+
     await matchingService.markRideAccepted(ride);
     return attachDriverLocation(ride);
   });
@@ -288,6 +346,36 @@ const endRide = async (user, rideId) =>
     return attachDriverLocation(ride);
   });
 
+const updateDriverLocation = async (user, rideId, payload = {}) => {
+  const driverProfile = await getDriverProfileOrFail(user.id);
+  const ride = await rideRepository.findById(rideId);
+
+  if (!ride || ride.driverId !== driverProfile.userId) {
+    throw new ApiError(404, 'Assigned ride not found');
+  }
+
+  if (
+    ![
+      RIDE_STATUSES.ACCEPTED,
+      RIDE_STATUSES.DRIVER_ARRIVING,
+      RIDE_STATUSES.ARRIVED,
+      RIDE_STATUSES.IN_PROGRESS
+    ].includes(ride.status)
+  ) {
+    throw new ApiError(409, `Driver location cannot be updated when ride status is ${ride.status}`);
+  }
+
+  const location = normalizeDriverLocationPayload(payload);
+  if (!location) {
+    throw new ApiError(400, 'driverLat and driverLng are required');
+  }
+
+  await locationStore.setDriverLocation(driverProfile.id, location);
+  await emitDriverLocationUpdate(ride, driverProfile, location);
+
+  return attachDriverLocation(ride);
+};
+
 const approveDriver = async (driverId) => {
   await sequelize.transaction(async (transaction) => {
     const driverProfile = await driverRepository.findById(driverId, transaction);
@@ -322,6 +410,7 @@ module.exports = {
   getPendingRideRequests,
   getActiveRide,
   acceptRide,
+  updateDriverLocation,
   rejectRide,
   updateRideStatus,
   startRide,

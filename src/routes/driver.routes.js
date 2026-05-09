@@ -42,9 +42,14 @@ router.post('/online', validateSchema(driverSchemas.setOnlineStatus), driverCont
 router.get('/rides/available', driverController.getPendingRideRequests);
 router.get('/rides/pending', driverController.getPendingRideRequests);
 router.get('/rides/active', driverController.getActiveRide);
-router.post('/rides/accept/:id', validateSchema(driverSchemas.rideIdParam), driverController.acceptRide);
+router.post('/rides/accept/:id', validateSchema(driverSchemas.acceptRide), driverController.acceptRide);
 router.post('/rides/reject/:id', validateSchema(driverSchemas.rideIdParam), driverController.rejectRide);
 router.patch('/rides/status/:id', validateSchema(driverSchemas.updateRideStatus), driverController.updateRideStatus);
+router.patch(
+  '/rides/:id/driver-location',
+  validateSchema(driverSchemas.updateDriverLocation),
+  driverController.updateDriverLocation
+);
 router.post('/rides/start/:id', validateSchema(driverSchemas.startRide), driverController.startRide);
 router.post('/rides/end/:id', validateSchema(driverSchemas.rideIdParam), driverController.endRide);
 

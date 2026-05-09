@@ -48,10 +48,19 @@ const getActiveRide = asyncHandler(async (req, res) => {
 });
 
 const acceptRide = asyncHandler(async (req, res) => {
-  const ride = await driverService.acceptRide(req.user, req.params.id);
+  const ride = await driverService.acceptRide(req.user, req.params.id, req.body);
 
   return sendSuccess(res, {
     message: 'Ride accepted successfully',
+    data: ride
+  });
+});
+
+const updateDriverLocation = asyncHandler(async (req, res) => {
+  const ride = await driverService.updateDriverLocation(req.user, req.params.id, req.body);
+
+  return sendSuccess(res, {
+    message: 'Driver location updated successfully',
     data: ride
   });
 });
@@ -99,6 +108,7 @@ module.exports = {
   getPendingRideRequests,
   getActiveRide,
   acceptRide,
+  updateDriverLocation,
   rejectRide,
   updateRideStatus,
   startRide,

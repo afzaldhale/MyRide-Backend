@@ -17,7 +17,6 @@ const nearbyDriversService = require('./nearbyDrivers.service');
 const cacheService = require('./cache.service');
 const sessionService = require('./session.service');
 const tokenService = require('./token.service');
-const rideRepository = require('../repositories/ride.repository');
 const ApiError = require('../utils/apiError');
 const { SOCKET_EVENTS, USER_ROLES, KYC_STATUSES } = require('../utils/constants');
 
@@ -124,31 +123,12 @@ const handleDriverLocationUpdate = async (io, socket, payload) => {
   nearbyDriversService.emitDriverLocationToSubscribers(io, driverProfile, location);
 
   if (payload?.rideId) {
-    const ride = await rideRepository.findById(payload.rideId);
-    if (!ride || ride.driverId !== user.id) {
-      throw new ApiError(403, 'You are not assigned to this ride');
-    }
-
-    const rideLocationPayload = {
-      rideId: payload.rideId,
-      room: realtimeGateway.rideRoom(payload.rideId),
-      driverId: driverProfile.id,
-      lat,
-      lng,
-      heading,
-      speed,
-      timestamp
-    };
-
-    realtimeGateway.emitToRide(payload.rideId, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, {
-      ...rideLocationPayload
+    await driverService.updateDriverLocation(user, payload.rideId, {
+      driverLat: lat,
+      driverLng: lng,
+      driverHeading: heading,
+      driverSpeed: speed
     });
-
-    realtimeGateway.emitToRide(
-      payload.rideId,
-      SOCKET_EVENTS.RIDE_DRIVER_LOCATION,
-      rideLocationPayload
-    );
   }
 };
 

@@ -20,6 +20,16 @@ const driverSchemas = {
       id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
     })
   },
+  acceptRide: {
+    body: Joi.object({
+      driverLat: Joi.number().min(-90).max(90).optional(),
+      driverLng: Joi.number().min(-180).max(180).optional(),
+      driverHeading: Joi.number().min(0).max(360).optional()
+    }).and('driverLat', 'driverLng'),
+    params: Joi.object({
+      id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
+    })
+  },
   startRide: {
     body: Joi.object({
       ride_otp: Joi.string().trim().length(4).required()
@@ -33,6 +43,17 @@ const driverSchemas = {
       status: Joi.string()
         .valid('driver_arriving', 'arrived', 'in_progress', 'completed')
         .required()
+    }),
+    params: Joi.object({
+      id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
+    })
+  },
+  updateDriverLocation: {
+    body: Joi.object({
+      driverLat: Joi.number().min(-90).max(90).required(),
+      driverLng: Joi.number().min(-180).max(180).required(),
+      driverHeading: Joi.number().min(0).max(360).optional(),
+      driverSpeed: Joi.number().min(0).optional()
     }),
     params: Joi.object({
       id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
