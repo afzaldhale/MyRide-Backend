@@ -45,12 +45,14 @@ router.get('/rides/active', driverController.getActiveRide);
 router.post('/rides/accept/:id', validateSchema(driverSchemas.acceptRide), driverController.acceptRide);
 router.post('/rides/reject/:id', validateSchema(driverSchemas.rideIdParam), driverController.rejectRide);
 router.patch('/rides/status/:id', validateSchema(driverSchemas.updateRideStatus), driverController.updateRideStatus);
+router.post('/rides/:id/arrived', validateSchema(driverSchemas.rideIdParam), driverController.markArrived);
 router.patch(
   '/rides/:id/driver-location',
   validateSchema(driverSchemas.updateDriverLocation),
   driverController.updateDriverLocation
 );
-router.post('/rides/start/:id', validateSchema(driverSchemas.startRide), driverController.startRide);
+router.post('/rides/:id/verify-otp', validateSchema(driverSchemas.verifyRideOtp), driverController.verifyRideOtp);
+router.post('/rides/start/:id', validateSchema(driverSchemas.verifyRideOtp), driverController.verifyRideOtp);
 router.post('/rides/end/:id', validateSchema(driverSchemas.rideIdParam), driverController.endRide);
 
 module.exports = router;

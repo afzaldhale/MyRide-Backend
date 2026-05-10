@@ -4,7 +4,7 @@ const driverRepository = require('../repositories/driver.repository');
 const rideRepository = require('../repositories/ride.repository');
 const locationStore = require('./locationStore.service');
 const realtimeGateway = require('./realtimeGateway.service');
-const { attachDriverLocation } = require('./rideTrackingPayload.service');
+const { attachDriverLocation, sanitizeRidePayload } = require('./rideTrackingPayload.service');
 const rideTrackingService = require('./rideTracking.service');
 const ApiError = require('../utils/apiError');
 const { getDistanceInKm } = require('../utils/distance');
@@ -272,6 +272,8 @@ const ensureDriverCanAccept = (queue, driverId) => {
 const markRideAccepted = async (ride) => {
   const hydratedRide = ride.driver && ride.rider ? ride : await rideRepository.findById(ride.id);
   const rideWithTracking = await attachDriverLocation(hydratedRide);
+  const sharedRide = sanitizeRidePayload(rideWithTracking, 'shared');
+  const riderRide = sanitizeRidePayload(rideWithTracking, 'rider');
   const queue = activeMatchQueues.get(hydratedRide.id);
 
   if (queue) {
@@ -288,44 +290,54 @@ const markRideAccepted = async (ride) => {
   realtimeGateway.emitToRide(hydratedRide.id, SOCKET_EVENTS.RIDE_ACCEPT, {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
-    driver: rideWithTracking.driver,
-    rider: rideWithTracking.rider,
-    ride: rideWithTracking
+    driver: sharedRide.driver,
+    rider: sharedRide.rider,
+    ride: sharedRide
   });
 
   realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_ACCEPT, {
     rideId: hydratedRide.id,
     status: hydratedRide.status,
     driver: rideWithTracking.driver,
-    ride: rideWithTracking
+    ride: riderRide
   });
 
-  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking);
+  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking, 'shared');
   realtimeGateway.emitToRide(hydratedRide.id, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
-  realtimeGateway.emitToUser(hydratedRide.riderId, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
+  realtimeGateway.emitToUser(
+    hydratedRide.riderId,
+    SOCKET_EVENTS.RIDE_SYNC,
+    await rideTrackingService.buildRideSyncPayload(rideWithTracking, 'rider'),
+  );
 };
 
 const emitRideStatusUpdate = async (eventName, ride) => {
   const rideWithTracking = await attachDriverLocation(ride);
-  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking);
+  const sharedRide = sanitizeRidePayload(rideWithTracking, 'shared');
+  const riderRide = sanitizeRidePayload(rideWithTracking, 'rider');
+  const syncPayload = await rideTrackingService.buildRideSyncPayload(rideWithTracking, 'shared');
 
   realtimeGateway.emitToRide(ride.id, eventName, {
     rideId: ride.id,
-    status: rideWithTracking.status,
-    driverId: rideWithTracking.driverId,
-    ride: rideWithTracking
+    status: sharedRide.status,
+    driverId: sharedRide.driverId,
+    ride: sharedRide
   });
 
   realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_STATUS_UPDATE, {
     rideId: ride.id,
-    status: rideWithTracking.status,
+    status: riderRide.status,
     event: eventName,
-    driverId: rideWithTracking.driverId,
-    ride: rideWithTracking
+    driverId: riderRide.driverId,
+    ride: riderRide
   });
 
   realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
-  realtimeGateway.emitToUser(ride.riderId, SOCKET_EVENTS.RIDE_SYNC, syncPayload);
+  realtimeGateway.emitToUser(
+    ride.riderId,
+    SOCKET_EVENTS.RIDE_SYNC,
+    await rideTrackingService.buildRideSyncPayload(rideWithTracking, 'rider'),
+  );
 };
 
 const cancelMatching = (ride) => {

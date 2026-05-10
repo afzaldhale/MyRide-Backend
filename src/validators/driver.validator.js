@@ -30,9 +30,9 @@ const driverSchemas = {
       id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()
     })
   },
-  startRide: {
+  verifyRideOtp: {
     body: Joi.object({
-      ride_otp: Joi.string().trim().length(4).required()
+      otp: Joi.string().trim().length(4).required()
     }),
     params: Joi.object({
       id: Joi.string().guid({ version: ['uuidv4', 'uuidv5'] }).required()

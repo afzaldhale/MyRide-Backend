@@ -1,5 +1,5 @@
 const rideRepository = require('../repositories/ride.repository');
-const { attachDriverLocation } = require('./rideTrackingPayload.service');
+const { attachDriverLocation, sanitizeRidePayload } = require('./rideTrackingPayload.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const ApiError = require('../utils/apiError');
 const { RIDE_STATUSES, SOCKET_EVENTS, USER_ROLES } = require('../utils/constants');
@@ -40,7 +40,7 @@ const isRideParticipant = (user, ride) => {
   return false;
 };
 
-const buildRideSyncPayload = async (rideOrId) => {
+const buildRideSyncPayload = async (rideOrId, audience = 'shared') => {
   const ride = typeof rideOrId === 'string'
     ? await rideRepository.findById(rideOrId)
     : rideOrId;
@@ -49,7 +49,10 @@ const buildRideSyncPayload = async (rideOrId) => {
     return null;
   }
 
-  const rideWithTracking = await attachDriverLocation(ride);
+  const rideWithTracking = sanitizeRidePayload(
+    await attachDriverLocation(ride),
+    audience,
+  );
 
   return {
     rideId: rideWithTracking.id,
@@ -78,7 +81,8 @@ const joinRideRoom = async (socket, payload = {}) => {
   const room = realtimeGateway.rideRoom(rideId);
   await socket.join(room);
 
-  const syncPayload = await buildRideSyncPayload(ride);
+  const audience = socket.data.user?.role === USER_ROLES.RIDER ? 'rider' : 'driver';
+  const syncPayload = await buildRideSyncPayload(ride, audience);
   socket.emit(SOCKET_EVENTS.RIDE_JOINED, syncPayload);
   socket.emit(SOCKET_EVENTS.RIDE_SYNC, syncPayload);
 
@@ -86,7 +90,8 @@ const joinRideRoom = async (socket, payload = {}) => {
 };
 
 const emitRideSync = async (rideOrId, socket) => {
-  const syncPayload = await buildRideSyncPayload(rideOrId);
+  const audience = socket?.data?.user?.role === USER_ROLES.RIDER ? 'rider' : 'driver';
+  const syncPayload = await buildRideSyncPayload(rideOrId, audience);
   if (!syncPayload) {
     return null;
   }

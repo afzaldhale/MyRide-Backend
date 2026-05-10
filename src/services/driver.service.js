@@ -6,7 +6,7 @@ const ApiError = require('../utils/apiError');
 const matchingService = require('./matching.service');
 const realtimeGateway = require('./realtimeGateway.service');
 const locationStore = require('./locationStore.service');
-const { attachDriverLocation } = require('./rideTrackingPayload.service');
+const { attachDriverLocation, sanitizeRidePayload } = require('./rideTrackingPayload.service');
 const { KYC_STATUSES, RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
 const { assertValidIndianPhone } = require('../utils/phone');
 
@@ -123,7 +123,7 @@ const getPendingRideRequests = async (user) => {
 const getActiveRide = async (user) => {
   const driverProfile = await getDriverProfileOrFail(user.id);
   const ride = await rideRepository.getActiveRideByDriverId(driverProfile.userId);
-  return attachDriverLocation(ride);
+  return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
 };
 
 const normalizeDriverLocationPayload = (payload = {}) => {
@@ -147,6 +147,7 @@ const normalizeDriverLocationPayload = (payload = {}) => {
 
 const emitDriverLocationUpdate = async (ride, driverProfile, location) => {
   const rideWithTracking = await attachDriverLocation(ride);
+  const sharedRide = sanitizeRidePayload(rideWithTracking, 'shared');
   const payload = {
     rideId: ride.id,
     driverId: driverProfile.id,
@@ -155,17 +156,17 @@ const emitDriverLocationUpdate = async (ride, driverProfile, location) => {
     heading: Number(location.heading || 0),
     speed: Number(location.speed || 0),
     timestamp: Number(location.timestamp),
-    ride: rideWithTracking
+    ride: sharedRide
   };
 
   realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.DRIVER_LOCATION_UPDATE, payload);
   realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_DRIVER_LOCATION, payload);
   realtimeGateway.emitToRide(ride.id, SOCKET_EVENTS.RIDE_SYNC, {
     rideId: ride.id,
-    status: rideWithTracking.status,
-    driverId: rideWithTracking.driverId,
-    driverLocation: rideWithTracking.driver_location || null,
-    ride: rideWithTracking
+    status: sharedRide.status,
+    driverId: sharedRide.driverId,
+    driverLocation: sharedRide.driver_location || null,
+    ride: sharedRide
   });
 };
 
@@ -203,7 +204,7 @@ const acceptRide = async (user, rideId, payload = {}) =>
       ride,
       {
         driverId: driverProfile.userId,
-        status: RIDE_STATUSES.ACCEPTED
+        status: RIDE_STATUSES.DRIVER_ARRIVING
       },
       transaction
     );
@@ -226,7 +227,7 @@ const acceptRide = async (user, rideId, payload = {}) =>
     }
 
     await matchingService.markRideAccepted(ride);
-    return attachDriverLocation(ride);
+    return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
   });
 
 const rejectRide = async (user, rideId) =>
@@ -285,10 +286,10 @@ const updateRideStatus = async (user, rideId, nextStatus) =>
     return rideRepository.findById(rideId, transaction);
   }).then(async (ride) => {
     await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_STATUS_UPDATE, ride);
-    return attachDriverLocation(ride);
+    return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
   });
 
-const startRide = async (user, rideId, rideOtp) =>
+const verifyRideOtp = async (user, rideId, rideOtp) =>
   sequelize.transaction(async (transaction) => {
     const driverProfile = await getDriverProfileOrFail(user.id, transaction);
     const ride = await rideRepository.findByIdForUpdate(rideId, transaction);
@@ -316,7 +317,7 @@ const startRide = async (user, rideId, rideOtp) =>
     return rideRepository.findById(rideId, transaction);
   }).then(async (ride) => {
     await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_START, ride);
-    return attachDriverLocation(ride);
+    return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
   });
 
 const endRide = async (user, rideId) =>
@@ -343,7 +344,7 @@ const endRide = async (user, rideId) =>
     return rideRepository.findById(rideId, transaction);
   }).then(async (ride) => {
     await matchingService.emitRideStatusUpdate(SOCKET_EVENTS.RIDE_END, ride);
-    return attachDriverLocation(ride);
+    return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
   });
 
 const updateDriverLocation = async (user, rideId, payload = {}) => {
@@ -373,7 +374,7 @@ const updateDriverLocation = async (user, rideId, payload = {}) => {
   await locationStore.setDriverLocation(driverProfile.id, location);
   await emitDriverLocationUpdate(ride, driverProfile, location);
 
-  return attachDriverLocation(ride);
+  return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
 };
 
 const approveDriver = async (driverId) => {
@@ -413,7 +414,7 @@ module.exports = {
   updateDriverLocation,
   rejectRide,
   updateRideStatus,
-  startRide,
+  verifyRideOtp,
   endRide,
   approveDriver
 };

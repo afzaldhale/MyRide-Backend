@@ -59,6 +59,25 @@ const attachDriverLocation = async (ride) => {
   };
 };
 
+const sanitizeRidePayload = (ride, audience = 'shared') => {
+  if (!ride) {
+    return ride;
+  }
+
+  const plainRide = toPlainRide(ride);
+  const sanitizedRide = {
+    ...plainRide,
+  };
+
+  if (audience !== 'rider') {
+    delete sanitizedRide.rideOtp;
+    delete sanitizedRide.ride_otp;
+  }
+
+  return sanitizedRide;
+};
+
 module.exports = {
   attachDriverLocation,
+  sanitizeRidePayload,
 };

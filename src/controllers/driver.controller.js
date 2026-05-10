@@ -83,11 +83,20 @@ const updateRideStatus = asyncHandler(async (req, res) => {
   });
 });
 
-const startRide = asyncHandler(async (req, res) => {
-  const ride = await driverService.startRide(req.user, req.params.id, req.body.ride_otp);
+const markArrived = asyncHandler(async (req, res) => {
+  const ride = await driverService.updateRideStatus(req.user, req.params.id, 'arrived');
 
   return sendSuccess(res, {
-    message: 'Ride started successfully',
+    message: 'Driver marked arrived at pickup successfully',
+    data: ride
+  });
+});
+
+const verifyRideOtp = asyncHandler(async (req, res) => {
+  const ride = await driverService.verifyRideOtp(req.user, req.params.id, req.body.otp);
+
+  return sendSuccess(res, {
+    message: 'Ride OTP verified successfully',
     data: ride
   });
 });
@@ -111,6 +120,7 @@ module.exports = {
   updateDriverLocation,
   rejectRide,
   updateRideStatus,
-  startRide,
+  markArrived,
+  verifyRideOtp,
   endRide
 };

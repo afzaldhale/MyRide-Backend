@@ -215,7 +215,7 @@ const registerSocketLifecycle = (io, socket) => {
 
   socket.on(SOCKET_EVENTS.RIDE_START, async (payload = {}) => {
     try {
-      const ride = await driverService.startRide(user, payload.rideId, payload.ride_otp);
+      const ride = await driverService.verifyRideOtp(user, payload.rideId, payload.otp);
       socket.emit(SOCKET_EVENTS.RIDE_START, {
         rideId: ride.id,
         status: ride.status,
