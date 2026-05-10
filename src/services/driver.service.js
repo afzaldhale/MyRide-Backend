@@ -9,6 +9,7 @@ const locationStore = require('./locationStore.service');
 const { attachDriverLocation, sanitizeRidePayload } = require('./rideTrackingPayload.service');
 const { KYC_STATUSES, RIDE_STATUSES, SOCKET_EVENTS } = require('../utils/constants');
 const { assertValidIndianPhone } = require('../utils/phone');
+const { shouldAutoCloseStaleRide } = require('./rideStateGuard.service');
 
 const DRIVER_STATUS_TRANSITIONS = {
   [RIDE_STATUSES.ACCEPTED]: [RIDE_STATUSES.DRIVER_ARRIVING, RIDE_STATUSES.ARRIVED],
@@ -123,6 +124,12 @@ const getPendingRideRequests = async (user) => {
 const getActiveRide = async (user) => {
   const driverProfile = await getDriverProfileOrFail(user.id);
   const ride = await rideRepository.getActiveRideByDriverId(driverProfile.userId);
+  if (ride && shouldAutoCloseStaleRide(ride)) {
+    await rideRepository.updateRide(ride, {
+      status: RIDE_STATUSES.CANCELLED
+    });
+    return null;
+  }
   return sanitizeRidePayload(await attachDriverLocation(ride), 'driver');
 };
 
@@ -185,7 +192,13 @@ const acceptRide = async (user, rideId, payload = {}) =>
 
     const activeRide = await rideRepository.getActiveRideByDriverId(driverProfile.userId);
     if (activeRide && activeRide.id !== rideId) {
-      throw new ApiError(409, 'You already have an active ride in progress');
+      if (shouldAutoCloseStaleRide(activeRide)) {
+        await rideRepository.updateRide(activeRide, {
+          status: RIDE_STATUSES.CANCELLED
+        }, transaction);
+      } else {
+        throw new ApiError(409, 'You already have an active ride in progress');
+      }
     }
 
     if (ride.status !== RIDE_STATUSES.REQUESTED || ride.driverId) {

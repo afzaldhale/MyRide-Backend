@@ -6,6 +6,7 @@ const { attachDriverLocation, sanitizeRidePayload } = require('./rideTrackingPay
 const { RIDE_STATUSES } = require('../utils/constants');
 const generateRideOtp = require('../utils/generateRideOtp');
 const logger = require('../config/logger');
+const { shouldAutoCloseStaleRide } = require('./rideStateGuard.service');
 
 const VALID_VEHICLE_TYPES = ['auto', 'economy', 'comfort', 'premium', 'xl', 'mini', 'sedan'];
 
@@ -25,6 +26,23 @@ const requestRide = async (user, payload) => {
   });
 
   try {
+    const existingActiveRide = await rideRepository.getActiveRideByRiderId(user.id);
+    if (existingActiveRide) {
+      if (shouldAutoCloseStaleRide(existingActiveRide)) {
+        await rideRepository.updateRide(existingActiveRide, {
+          status: RIDE_STATUSES.CANCELLED
+        });
+        matchingService.cancelMatching(existingActiveRide);
+      } else if (existingActiveRide.status === RIDE_STATUSES.IN_PROGRESS) {
+        throw new ApiError(409, 'Complete the current ride before requesting a new one');
+      } else {
+        throw new ApiError(
+          409,
+          'You already have an active ride. Cancel it or wait for it to finish before requesting another one',
+        );
+      }
+    }
+
     // Validate vehicle type if provided
     const vehicleType = payload.vehicleType?.toLowerCase();
     if (vehicleType && !VALID_VEHICLE_TYPES.includes(vehicleType)) {
@@ -97,6 +115,13 @@ const getMyRides = (user) => rideRepository.getRidesByRiderId(user.id);
 
 const getActiveRide = async (user) => {
   const ride = await rideRepository.getActiveRideByRiderId(user.id);
+  if (ride && shouldAutoCloseStaleRide(ride)) {
+    await rideRepository.updateRide(ride, {
+      status: RIDE_STATUSES.CANCELLED
+    });
+    matchingService.cancelMatching(ride);
+    return null;
+  }
   return sanitizeRidePayload(await attachDriverLocation(ride), 'rider');
 };
 
